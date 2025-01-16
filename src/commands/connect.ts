@@ -10,17 +10,11 @@ export function createConnectCommand(): Command {
   connect
     .command('login')
     .description('Login to Nile')
-    .action(async () => {
+    .option('--client-id <clientId>', 'Optional: Specify a custom client ID')
+    .action(async (options) => {
       try {
-        const clientId = process.env.NILE_CLIENT_ID;
-        const clientSecret = process.env.NILE_CLIENT_SECRET;
-
-        if (!clientId || !clientSecret) {
-          throw new Error('NILE_CLIENT_ID and NILE_CLIENT_SECRET must be set');
-        }
-
         console.log(chalk.blue('Opening browser for authentication...'));
-        const token = await Auth.getAuthorizationToken(clientId, clientSecret);
+        const token = await Auth.getAuthorizationToken(options.clientId);
         await Config.saveToken(token);
         console.log(chalk.green('Authentication successful! You are now logged in.'));
       } catch (error) {
