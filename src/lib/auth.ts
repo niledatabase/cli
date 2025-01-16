@@ -10,20 +10,23 @@ export class Auth {
   private static DEFAULT_CLIENT_ID = 'nilecli';
 
   private static generateCodeVerifier(): string {
-    return crypto.randomBytes(32)
+    const buffer = crypto.randomBytes(32);
+    return buffer
       .toString('base64')
-      .replace(/[^a-zA-Z0-9]/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '')
       .substring(0, 128);
   }
 
   private static async generateCodeChallenge(verifier: string): Promise<string> {
-    const hash = crypto.createHash('sha256')
-      .update(verifier)
-      .digest('base64')
+    const buffer = Buffer.from(verifier);
+    const hash = crypto.createHash('sha256').update(buffer).digest();
+    return hash
+      .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=/g, '');
-    return hash;
   }
 
   static async getAuthorizationToken(clientId: string = Auth.DEFAULT_CLIENT_ID): Promise<string> {
@@ -33,6 +36,16 @@ export class Auth {
       const server = http.createServer(async (req, res) => {
         const url = new URL(req.url!, `http://${req.headers.host}`);
         const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+        const errorDescription = url.searchParams.get('error_description');
+
+        if (error) {
+          res.writeHead(400, { 'Content-Type': 'text/html' });
+          res.end(`Authentication failed: ${errorDescription || error}`);
+          server.close();
+          reject(new Error(errorDescription || error));
+          return;
+        }
 
         if (code) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -48,12 +61,21 @@ export class Auth {
                 client_id: clientId,
                 code_verifier: codeVerifier,
                 redirect_uri: 'http://localhost:8080/callback',
-              })
+              }).toString(),
+              {
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded'
+                }
+              }
             );
 
             resolve(tokenResponse.data.access_token);
           } catch (error) {
-            reject(error);
+            if (axios.isAxiosError(error) && error.response) {
+              reject(new Error(`Token exchange failed: ${error.response.data.error || error.message}`));
+            } else {
+              reject(error);
+            }
           }
         }
       });
@@ -61,7 +83,7 @@ export class Auth {
       server.listen(8080, async () => {
         try {
           const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-          const authUrl = `${Auth.AUTH_URL}?` + new URLSearchParams({
+          const params = new URLSearchParams({
             client_id: clientId,
             response_type: 'code',
             code_challenge: codeChallenge,
@@ -69,13 +91,20 @@ export class Auth {
             redirect_uri: 'http://localhost:8080/callback',
             scope: 'databases workspaces query'
           });
-          
+
+          const authUrl = `${Auth.AUTH_URL}?${params.toString()}`;
+          console.log('Opening authorization URL:', authUrl);
           await open(authUrl);
         } catch (error) {
           server.close();
           reject(error);
         }
       });
+
+      setTimeout(() => {
+        server.close();
+        reject(new Error('Authentication timed out after 5 minutes'));
+      }, 300000);
     });
   }
 } 
