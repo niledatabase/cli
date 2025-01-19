@@ -14,12 +14,27 @@ export interface Database {
 export interface Developer {
   id: string;
   email: string;
+  name?: string;
   workspaces: Workspace[];
 }
 
 export interface Credentials {
-  username: string;
+  id: string;
   password: string;
+  database: {
+    id: string;
+    name: string;
+    workspace: {
+      id: string;
+      name: string;
+      slug: string;
+      stripe_customer_id?: string;
+      created: string;
+    };
+    status: string;
+    region: string;
+    created: string;
+  };
 }
 
 export interface TokenResponse {
