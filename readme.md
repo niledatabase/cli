@@ -1,197 +1,176 @@
 # Nile CLI
 
-A command-line interface for managing Nile databases and workspaces.
+Command line interface for managing Nile databases. Easily create, manage, and monitor your Nile databases from the terminal.
 
-## Installation
+## Building from Source
 
-```bash
-npm install -g @niledatabase/cli
-```
+### Prerequisites
+
+- Node.js (v16 or later)
+- npm or yarn
+- Git
+
+### Installation Steps
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/niledatabase/nile-cli.git
+   cd nile-cli
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the CLI:
+   ```bash
+   npm run build
+   ```
+
+4. Link the CLI globally:
+   ```bash
+   npm link
+   ```
+
+Now you can use the `nile` command from anywhere in your terminal.
 
 ## Quick Start
 
-1. Login to your Nile account:
+1. **Authentication**
+
+   You can authenticate using one of these methods:
    ```bash
-   nile connect login
+   # Using API key directly
+   nile --api-key YOUR_API_KEY db list
+
+   # Or login via browser
+   nile auth login
    ```
 
-2. Select a workspace:
+2. **Select a Workspace**
    ```bash
-   nile workspace select <workspace-name>
+   nile workspace list          # List available workspaces
+   nile workspace select demo   # Select a workspace
    ```
 
-3. Create a database:
+3. **Manage Databases**
    ```bash
-   nile db create --name my-db --region us-west-1
+   # List all databases
+   nile db list
+
+   # Create a new database
+   nile db create --name mydb --region AWS_US_WEST_2
+
+   # Show database details
+   nile db show mydb
+
+   # Delete a database
+   nile db delete mydb
    ```
 
-## Command Reference
+## Global Options
 
-### `nile connect` - Authentication Management
+- `--api-key <key>`: API key for authentication (can also be set via NILE_API_KEY env variable)
+- `-f, --format <type>`: Output format: human (default), json, or csv
+- `--color`: Enable colored output (default: true)
+- `--no-color`: Disable colored output
+- `--debug`: Enable debug output
+- `-h, --help`: Show help information
 
-#### Login
+## Commands
+
+### Authentication
 ```bash
-nile connect login
-```
-Opens a web browser for authentication. After successful login, your CLI session will be authenticated.
-
-**Example Output:**
-```
-Opening browser for authentication...
-Authentication successful! You are now logged in as user@example.com.
+nile auth login    # Login using browser-based auth
+nile auth status   # Check authentication status
+nile auth logout   # Clear stored credentials
 ```
 
-#### Logout
+### Workspaces
 ```bash
-nile connect logout
-```
-Ends the current authenticated session.
-
-**Example Output:**
-```
-You have been logged out.
+nile workspace list           # List available workspaces
+nile workspace select demo    # Select a workspace
 ```
 
-### `nile workspace` - Workspace Management
-
-#### Select Workspace
+### Databases
 ```bash
-nile workspace select <workspaceName>
-```
-Sets the active workspace context for subsequent commands.
-
-**Example Output:**
-```
-Workspace switched to 'engineering-team'.
-```
-
-#### List Workspaces
-```bash
-nile workspace list
-```
-Displays all accessible workspaces.
-
-**Example Output:**
-```
-Available Workspaces:
-- engineering-team
-- product-team
-- finance
-```
-
-#### Show Current Workspace
-```bash
-nile workspace show
-```
-Displays the currently active workspace.
-
-**Example Output:**
-```
-Current workspace: engineering-team
-```
-
-### `nile db` - Database Management
-
-#### List Databases
-```bash
+# List databases
 nile db list
-```
-Shows all databases in the current workspace.
 
-**Example Output:**
-```
-Databases in workspace 'engineering-team':
-NAME           REGION       STATUS
-analytics-db   us-west-1    running
-test-db        us-east-1    stopped
+# Create database
+nile db create --name mydb --region AWS_US_WEST_2
+
+# Show database details
+nile db show mydb
+
+# Delete database
+nile db delete mydb
 ```
 
-#### Create Database
+## Output Formats
+
+The CLI supports multiple output formats for easy integration with other tools:
+
+1. **Human-readable** (default):
+   ```bash
+   nile db list
+   ```
+
+2. **JSON** (good for scripting):
+   ```bash
+   nile --format json db list
+   ```
+
+3. **CSV** (good for spreadsheets):
+   ```bash
+   nile --format csv db list
+   ```
+
+## Debugging
+
+For troubleshooting, use the `--debug` flag to see detailed API interactions:
 ```bash
-nile db create --name <databaseName> --region <region>
-```
-Creates a new database in the selected workspace.
-
-**Example Output:**
-```
-Creating database 'prod-db' in region 'us-west-1'...
-Database 'prod-db' created successfully.
+nile --debug db list
 ```
 
-#### Delete Database
-```bash
-nile db delete <databaseName>
-```
-Deletes a specified database (requires confirmation).
+## Environment Variables
 
-**Example Output:**
-```
-Are you sure you want to delete 'prod-db'? This action cannot be undone. (yes/no): yes
-Deleting database 'prod-db'...
-Database 'prod-db' deleted successfully.
-```
+- `NILE_API_KEY`: Set your API key without passing it in the command line
 
-### `nile psql` - Database Connection
+## Common Use Cases
 
-```bash
-nile psql --connection-string <connectionString> --db <databaseName>
-```
-Connects to a Nile database using PostgreSQL's psql tool.
+1. **Creating a Database**
+   ```bash
+   # List available regions
+   nile db create --name mydb
+   
+   # Create in specific region
+   nile db create --name mydb --region AWS_US_WEST_2
+   ```
 
-**Example Output:**
-```
-Connecting to database 'prod-db'...
-psql (14.0)
-Type "help" for help.
+2. **Automation Scripts**
+   ```bash
+   # Use JSON output and no colors
+   nile --format json --no-color db list
+   
+   # Force delete without confirmation
+   nile db delete mydb --force
+   ```
 
-prod-db=>
-```
+3. **Checking Database Status**
+   ```bash
+   # Get detailed database info
+   nile db show mydb
+   ```
 
-## Global Flags
+## Contributing
 
-The following flags can be used with any command:
-
-- `-api-token <token>`: Specify API token for authentication
-- `-api-url <url>`: Override the base Nile API URL
-- `-config <path>`: Use custom config file (default: `$HOME/.config/niledb/nile.yml`)
-- `-debug`: Enable debug mode for detailed logging
-- `-f, --format <type>`: Set output format (`human`, `json`, `csv`)
-- `-h, --help`: Show command help
-- `-no-color`: Disable colored output
-- `-version`: Show CLI version
-
-### Format Flag Example
-```bash
-nile workspace list --format json
-```
-
-**Output:**
-```json
-[
-  { "name": "engineering-team", "id": "12345" },
-  { "name": "product-team", "id": "67890" }
-]
-```
-
-### Help Flag Example
-```bash
-nile workspace --help
-```
-
-**Output:**
-```
-Usage: nile workspace [options] [command]
-Manage workspaces in Nile.
-
-Commands:
-  select <workspaceName>  Select a workspace
-  list                    List available workspaces
-  show                    Show the currently selected workspace
-```
-
-## Support
-
-For issues and feature requests, please visit our [GitHub repository](https://github.com/niledatabase/nile-cli).
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
 
 ## License
 

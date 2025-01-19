@@ -1,9 +1,12 @@
 import { Command } from 'commander';
 import { Auth } from '../lib/auth';
 import { Config } from '../lib/config';
+import { getAuthToken, AuthOptions } from '../lib/authUtils';
 import chalk from 'chalk';
 
-export function createConnectCommand(): Command {
+type GetOptions = () => AuthOptions;
+
+export function createConnectCommand(getOptions: GetOptions): Command {
   const connect = new Command('connect')
     .description('Manage authentication and connection to Nile');
 
@@ -13,8 +16,16 @@ export function createConnectCommand(): Command {
     .option('--client-id <clientId>', 'Optional: Specify a custom client ID')
     .action(async (options) => {
       try {
+        const globalOptions = getOptions();
+        // If API key is provided, save it and skip web auth
+        if (globalOptions.apiKey) {
+          await Config.saveToken(globalOptions.apiKey);
+          console.log(chalk.green('Successfully authenticated with API key'));
+          return;
+        }
+
         console.log(chalk.blue('Opening browser for authentication...'));
-        const token = await Auth.getAuthorizationToken(options.clientId);
+        const token = await getAuthToken(globalOptions);
         await Config.saveToken(token);
         console.log(chalk.green('Authentication successful! You are now logged in.'));
       } catch (error) {
