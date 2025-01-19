@@ -11,6 +11,7 @@ interface GlobalOptions extends AuthOptions {
   format?: 'human' | 'json' | 'csv';
   color?: boolean;
   debug?: boolean;
+  dbHost?: string;
 }
 
 // Store the global options
@@ -34,6 +35,7 @@ program
   .option('--color [boolean]', 'Enable colored output', true)
   .option('--no-color', 'Disable colored output for automation/CI pipelines')
   .option('--debug', 'Enable debug output')
+  .option('--db-host <host>', 'Override the database host domain (default: db.thenile.dev)')
   .addHelpText('after', `
 Commands:
   auth               Authenticate with Nile
@@ -51,7 +53,8 @@ Examples:
       apiKey: opts.apiKey,
       format: opts.format,
       color: opts.color,
-      debug: opts.debug
+      debug: opts.debug,
+      dbHost: opts.dbHost
     };
     updateChalkConfig(opts.color);
   });

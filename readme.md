@@ -9,6 +9,7 @@ Command line interface for managing Nile databases. Easily create, manage, and m
 - Node.js (v16 or later)
 - npm or yarn
 - Git
+- PostgreSQL command line tools (psql) - required for database connections
 
 ### Installation Steps
 
@@ -59,14 +60,25 @@ Now you can use the `nile` command from anywhere in your terminal.
    # List all databases
    nile db list
 
+   # List available regions
+   nile db regions
+
    # Create a new database
    nile db create --name mydb --region AWS_US_WEST_2
 
    # Show database details
    nile db show mydb
 
+   # Get database connection string
+   nile db connectionstring --name mydb                 # Get connection details in JSON format
+   nile db connectionstring --name mydb --psql          # Get PostgreSQL connection string
+
    # Delete a database
    nile db delete mydb
+
+   # Connect to database using psql (requires PostgreSQL client tools)
+   nile db psql --name mydb                    # Creates new credentials and connects
+   nile db psql --name mydb --connection-string "postgres://..."   # Uses provided connection string
    ```
 
 ## Global Options
@@ -98,14 +110,25 @@ nile workspace select demo    # Select a workspace
 # List databases
 nile db list
 
+# List available regions
+nile db regions
+
 # Create database
 nile db create --name mydb --region AWS_US_WEST_2
 
 # Show database details
 nile db show mydb
 
-# Delete database
+# Get database connection string
+nile db connectionstring --name mydb                 # Get connection details in JSON format
+nile db connectionstring --name mydb --psql          # Get PostgreSQL connection string
+
+# Delete a database
 nile db delete mydb
+
+# Connect to database using psql (requires PostgreSQL client tools)
+nile db psql --name mydb                    # Creates new credentials and connects
+nile db psql --name mydb --connection-string "postgres://..."   # Uses provided connection string
 ```
 
 ## Output Formats
@@ -143,13 +166,30 @@ nile --debug db list
 1. **Creating a Database**
    ```bash
    # List available regions
-   nile db create --name mydb
+   nile db regions
    
    # Create in specific region
    nile db create --name mydb --region AWS_US_WEST_2
    ```
 
-2. **Automation Scripts**
+2. **Getting Connection Details**
+   ```bash
+   # Get connection details in JSON format
+   nile db connectionstring --name mydb
+   {
+     "host": "us-west-2.db.thenile.dev",
+     "port": 5432,
+     "database": "mydb",
+     "username": "01947d5b-ba0a-7bdd-9770-788de783cd61",
+     "password": "your-password"
+   }
+
+   # Get PostgreSQL connection string
+   nile db connectionstring --name mydb --psql
+   postgres://01947d5b-ba0a-7bdd-9770-788de783cd61:your-password@us-west-2.db.thenile.dev:5432/mydb
+   ```
+
+3. **Automation Scripts**
    ```bash
    # Use JSON output and no colors
    nile --format json --no-color db list
@@ -158,10 +198,21 @@ nile --debug db list
    nile db delete mydb --force
    ```
 
-3. **Checking Database Status**
+4. **Checking Database Status**
    ```bash
    # Get detailed database info
    nile db show mydb
+   ```
+
+5. **Connecting to Databases**
+   ```bash
+   # First ensure PostgreSQL client tools are installed:
+   # - On macOS: brew install postgresql
+   # - On Ubuntu/Debian: apt-get install postgresql-client
+   # - On Windows: Install from https://www.postgresql.org/download/windows/
+   
+   # Then connect to your database
+   nile db psql --name mydb
    ```
 
 ## Contributing
