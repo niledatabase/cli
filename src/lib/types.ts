@@ -1,7 +1,8 @@
 export interface Workspace {
-  id: string;
+  id?: string;
   name: string;
   slug: string;
+  created?: string;
 }
 
 export interface Database {
