@@ -4,6 +4,7 @@ import { program } from 'commander';
 import { createWorkspaceCommand } from './commands/workspace';
 import { createAuthCommand } from './commands/auth';
 import { createDbCommand } from './commands/db';
+import { createTenantsCommand } from './commands/tenants';
 import { AuthOptions } from './lib/authUtils';
 import chalk from 'chalk';
 
@@ -12,6 +13,7 @@ interface GlobalOptions extends AuthOptions {
   color?: boolean;
   debug?: boolean;
   dbHost?: string;
+  apiHost?: string;
 }
 
 // Store the global options
@@ -36,17 +38,20 @@ program
   .option('--no-color', 'Disable colored output for automation/CI pipelines')
   .option('--debug', 'Enable debug output')
   .option('--db-host <host>', 'Override the database host domain (default: db.thenile.dev)')
+  .option('--api-host <host>', 'Override the API host domain (default: api.thenile.dev)')
   .addHelpText('after', `
 Commands:
   auth               Authenticate with Nile
   workspace          Manage workspaces
   db                Manage Nile databases
+  tenants           Manage tenants
 
 Examples:
   $ nile auth connect                   Connect to Nile
   $ nile --api-key <key> workspace list
   $ nile --format json db list
-  $ nile --no-color db show my-database`)
+  $ nile --no-color db show my-database
+  $ nile tenants list                   List tenants in selected database`)
   .hook('preAction', (thisCommand) => {
     const opts = thisCommand.opts();
     globalOptions = {
@@ -54,7 +59,8 @@ Examples:
       format: opts.format,
       color: opts.color,
       debug: opts.debug,
-      dbHost: opts.dbHost
+      dbHost: opts.dbHost,
+      apiHost: opts.apiHost
     };
     updateChalkConfig(opts.color);
   });
@@ -66,5 +72,6 @@ const getGlobalOptions = () => globalOptions;
 program.addCommand(createAuthCommand(getGlobalOptions));
 program.addCommand(createWorkspaceCommand(getGlobalOptions));
 program.addCommand(createDbCommand(getGlobalOptions));
+program.addCommand(createTenantsCommand(getGlobalOptions));
 
 program.parse(); 
