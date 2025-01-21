@@ -1,48 +1,85 @@
 import { Command } from 'commander';
-import { Auth } from '../lib/auth';
 import { Config } from '../lib/config';
-import { getAuthToken, AuthOptions } from '../lib/authUtils';
-import chalk from 'chalk';
+import { Auth } from '../lib/auth';
+import { getAuthToken } from '../lib/authUtils';
+import { theme, formatCommand } from '../lib/colors';
+import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 
-type GetOptions = () => AuthOptions;
+type GetOptions = () => GlobalOptions;
 
 export function createConnectCommand(getOptions: GetOptions): Command {
   const connect = new Command('connect')
-    .description('Manage authentication and connection to Nile');
+    .description('Connect to Nile')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile connect')}                    Connect to Nile using browser
+  ${formatCommand('nile connect status')}             Check connection status
+  ${formatCommand('nile connect logout')}             Clear stored credentials
+
+${getGlobalOptionsHelp()}`);
 
   connect
     .command('login')
-    .description('Login to Nile')
-    .option('--client-id <clientId>', 'Optional: Specify a custom client ID')
+    .description('Connect to Nile using browser-based authentication')
+    .option('--client-id <id>', 'OAuth client ID', 'nile-cli')
     .action(async (options) => {
       try {
+        // First try to get token from existing methods
         const globalOptions = getOptions();
-        // If API key is provided, save it and skip web auth
-        if (globalOptions.apiKey) {
-          await Config.saveToken(globalOptions.apiKey);
-          console.log(chalk.green('Successfully authenticated with API key'));
+        const existingToken = await getAuthToken(globalOptions);
+        if (existingToken) {
+          console.log(theme.success('Already connected to Nile!'));
           return;
         }
 
-        console.log(chalk.blue('Opening browser for authentication...'));
-        const token = await getAuthToken(globalOptions);
-        await Config.saveToken(token);
-        console.log(chalk.green('Authentication successful! You are now logged in.'));
+        // If no existing token, start browser-based auth
+        console.log(theme.info('Starting browser-based authentication...'));
+        const token = await Auth.getAuthorizationToken(options.clientId);
+        if (token) {
+          await Config.saveToken(token);
+          console.log(theme.success('\nSuccessfully connected to Nile!'));
+        } else {
+          console.error(theme.error('Failed to connect to Nile'));
+          process.exit(1);
+        }
       } catch (error) {
-        console.error(chalk.red('Authentication failed:'), error);
+        console.error(theme.error('Failed to connect:'), error);
+        process.exit(1);
+      }
+    });
+
+  connect
+    .command('status')
+    .description('Check connection status')
+    .action(async () => {
+      try {
+        const globalOptions = getOptions();
+        const token = await getAuthToken(globalOptions);
+        if (token) {
+          if (globalOptions.apiKey) {
+            console.log(theme.success('Connected to Nile using API key'));
+          } else {
+            console.log(theme.success('Connected to Nile'));
+          }
+        } else {
+          console.log(theme.warning('Not connected to Nile'));
+          console.log(theme.secondary('Run "nile connect" to connect'));
+        }
+      } catch (error) {
+        console.error(theme.error('Failed to check status:'), error);
         process.exit(1);
       }
     });
 
   connect
     .command('logout')
-    .description('Logout from Nile')
+    .description('Clear stored credentials')
     .action(async () => {
       try {
         await Config.removeToken();
-        console.log(chalk.green('You have been logged out.'));
+        console.log(theme.success('Successfully logged out'));
       } catch (error) {
-        console.error(chalk.red('Logout failed:'), error);
+        console.error(theme.error('Failed to logout:'), error);
         process.exit(1);
       }
     });

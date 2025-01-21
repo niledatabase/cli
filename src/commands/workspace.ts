@@ -1,51 +1,89 @@
 import { Command } from 'commander';
 import { Config } from '../lib/config';
 import { NileAPI } from '../lib/api';
-import { getAuthToken, AuthOptions } from '../lib/authUtils';
+import { getAuthToken } from '../lib/authUtils';
+import { theme, table, formatCommand } from '../lib/colors';
+import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import chalk from 'chalk';
 import axios from 'axios';
 
-type GetOptions = () => AuthOptions;
+interface Workspace {
+  name: string;
+  slug: string;
+  id?: string;
+  created?: string;
+}
+
+type GetOptions = () => GlobalOptions;
 
 export function createWorkspaceCommand(getOptions: GetOptions): Command {
   const workspace = new Command('workspace')
-    .description('Manage workspaces');
+    .description('Manage workspaces')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile workspace list')}                List all workspaces
+  ${formatCommand('nile workspace select demo')}         Select a workspace to use
+  ${formatCommand('nile workspace show')}                Show current workspace
+  ${formatCommand('nile workspace list', '--format json')}  List workspaces in JSON format
+
+${getGlobalOptionsHelp()}`);
 
   workspace
     .command('list')
-    .description('List available workspaces')
-    .option('--format <type>', 'Output format (human, json)', 'human')
-    .action(async (options) => {
+    .description('List all available workspaces')
+    .action(async () => {
       try {
-        const token = await getAuthToken(getOptions());
-        const api = new NileAPI(token);
-        const developer = await api.getDeveloperInfo();
+        const options = getOptions();
+        const token = await getAuthToken(options);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+        const workspaces = await api.listWorkspaces();
 
         if (options.format === 'json') {
-          console.log(JSON.stringify(developer.workspaces, null, 2));
+          console.log(JSON.stringify(workspaces, null, 2));
           return;
         }
 
-        if (developer.workspaces.length === 0) {
-          console.log(chalk.yellow('\nNo workspaces available.'));
+        if (options.format === 'csv') {
+          console.log('NAME,SLUG');
+          workspaces.forEach(w => {
+            console.log(`${w.name},${w.slug}`);
+          });
           return;
         }
 
-        console.log(chalk.blue('\nAvailable Workspaces:'));
-        developer.workspaces.forEach((ws) => {
-          console.log(`- ${ws.name}`);
-          console.log(`  ID: ${ws.id || 'N/A'}`);
-          console.log(`  Slug: ${ws.slug}`);
-          if (ws.created) {
-            console.log(`  Created: ${new Date(ws.created).toLocaleString()}`);
-          }
-          console.log('');
+        if (workspaces.length === 0) {
+          console.log(theme.warning('\nNo workspaces found'));
+          return;
+        }
+
+        // Create a nicely formatted table
+        console.log(theme.primary('\nAvailable workspaces:'));
+        
+        // Table header
+        const header = `${table.topLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(20)}${table.topRight}`;
+        console.log(header);
+        console.log(`${table.vertical}${theme.header(' NAME').padEnd(20)}${table.vertical}${theme.header(' SLUG').padEnd(20)}${table.vertical}`);
+        console.log(`${table.vertical}${theme.border('─'.repeat(19))}${table.vertical}${theme.border('─'.repeat(19))}${table.vertical}`);
+
+        // Table rows
+        workspaces.forEach(w => {
+          console.log(
+            `${table.vertical} ${theme.primary(w.name.padEnd(18))}${table.vertical} ${theme.info(w.slug.padEnd(18))}${table.vertical}`
+          );
         });
-      } catch (error) {
+
+        // Table footer
+        console.log(`${table.bottomLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(20)}${table.bottomRight}`);
+      } catch (error: any) {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
-          console.error(chalk.red('Authentication failed. Please run "nile connect login" or provide a valid API key.'));
+          console.error(theme.error('Authentication failed. Please run "nile auth login" first'));
         } else {
-          console.error(chalk.red('Failed to list workspaces:'), error);
+          console.error(theme.error('Failed to list workspaces:'), error.message || error);
         }
         process.exit(1);
       }
@@ -53,19 +91,22 @@ export function createWorkspaceCommand(getOptions: GetOptions): Command {
 
   workspace
     .command('select <workspaceSlug>')
-    .description('Select a workspace by its slug')
+    .description('Select a workspace to use')
     .action(async (workspaceSlug) => {
       try {
-        // Create a workspace object with the provided slug
-        const workspace = {
-          name: workspaceSlug, // Using slug as name initially
-          slug: workspaceSlug,
-        };
-
-        await Config.saveWorkspace(workspace);
-        console.log(chalk.green(`Workspace context set to '${workspaceSlug}'`));
-      } catch (error) {
-        console.error(chalk.red('Failed to set workspace:'), error);
+        const options = getOptions();
+        const token = await getAuthToken(options);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+        const workspace = await api.getWorkspace(workspaceSlug);
+        await Config.setWorkspace(workspace);
+        console.log(theme.success(`Selected workspace '${theme.bold(workspace.name)}'`));
+      } catch (error: any) {
+        console.error(theme.error('Failed to select workspace:'), error.message || error);
         process.exit(1);
       }
     });
@@ -73,25 +114,31 @@ export function createWorkspaceCommand(getOptions: GetOptions): Command {
   workspace
     .command('show')
     .description('Show current workspace')
-    .option('--format <type>', 'Output format (human, json)', 'human')
-    .action(async (options) => {
+    .action(async () => {
       try {
         const workspace = await Config.getWorkspace();
-        
-        if (options.format === 'json') {
-          console.log(JSON.stringify(workspace || {}, null, 2));
+        if (!workspace) {
+          console.log(theme.warning('No workspace selected'));
+          console.log(theme.secondary('Run "nile workspace select <name>" to select a workspace'));
           return;
         }
 
-        if (workspace) {
-          console.log(chalk.blue('\nCurrent Workspace:'));
-          console.log(`Name: ${workspace.name}`);
-          console.log(`Slug: ${workspace.slug}`);
-        } else {
-          console.log(chalk.yellow('No workspace selected'));
+        if (getOptions().format === 'json') {
+          console.log(JSON.stringify(workspace, null, 2));
+          return;
         }
-      } catch (error) {
-        console.error(chalk.red('Failed to show workspace:'), error);
+
+        if (getOptions().format === 'csv') {
+          console.log('NAME,SLUG');
+          console.log(`${workspace.name},${workspace.slug}`);
+          return;
+        }
+
+        console.log(theme.primary('\nCurrent workspace:'));
+        console.log(`${theme.secondary('Name:')}  ${theme.primary(workspace.name)}`);
+        console.log(`${theme.secondary('Slug:')}  ${theme.info(workspace.slug)}`);
+      } catch (error: any) {
+        console.error(theme.error('Failed to get workspace:'), error.message || error);
         process.exit(1);
       }
     });

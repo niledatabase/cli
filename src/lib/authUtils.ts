@@ -3,12 +3,9 @@ import { Auth } from './auth';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
+import { GlobalOptions } from './globalOptions';
 
-export interface AuthOptions {
-  apiKey?: string;
-}
-
-export async function getAuthToken(options: AuthOptions = {}): Promise<string> {
+export async function getAuthToken(options: GlobalOptions = {}): Promise<string> {
   // 1. Check for --api-key option
   if (options.apiKey) {
     return options.apiKey;

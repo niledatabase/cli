@@ -1,77 +1,35 @@
 #!/usr/bin/env node
 
-import { program } from 'commander';
+import { Command } from 'commander';
+import { createConnectCommand } from './commands/connect';
 import { createWorkspaceCommand } from './commands/workspace';
-import { createAuthCommand } from './commands/auth';
 import { createDbCommand } from './commands/db';
 import { createTenantsCommand } from './commands/tenants';
-import { AuthOptions } from './lib/authUtils';
-import chalk from 'chalk';
+import { addGlobalOptions, updateChalkConfig } from './lib/globalOptions';
 
-interface GlobalOptions extends AuthOptions {
-  format?: 'human' | 'json' | 'csv';
-  color?: boolean;
-  debug?: boolean;
-  dbHost?: string;
-  apiHost?: string;
-}
-
-// Store the global options
-let globalOptions: GlobalOptions = {
-  color: true,  // Default to true
-};
-
-// Configure chalk based on color option
-const updateChalkConfig = (color: boolean) => {
-  if (color === false) {
-    chalk.level = 0;
-  }
-};
-
-program
-  .name('nile')
-  .description('Command line interface for Nile databases')
-  .version('1.0.0')
-  .option('--api-key <key>', 'API key for authentication (can also be set via NILE_API_KEY env variable)')
-  .option('-f, --format <type>', 'Output format: human (default), json, or csv', 'human')
-  .option('--color [boolean]', 'Enable colored output', true)
-  .option('--no-color', 'Disable colored output for automation/CI pipelines')
-  .option('--debug', 'Enable debug output')
-  .option('--db-host <host>', 'Override the database host domain (default: db.thenile.dev)')
-  .option('--api-host <host>', 'Override the API host domain (default: api.thenile.dev)')
+const cli = new Command()
+  .version('0.1.0')
+  .description('Nile CLI')
   .addHelpText('after', `
-Commands:
-  auth               Authenticate with Nile
-  workspace          Manage workspaces
-  db                Manage Nile databases
-  tenants           Manage tenants
-
 Examples:
-  $ nile auth connect                   Connect to Nile
-  $ nile --api-key <key> workspace list
-  $ nile --format json db list
+  $ nile connect                   Connect to Nile
   $ nile --no-color db show my-database
-  $ nile tenants list                   List tenants in selected database`)
-  .hook('preAction', (thisCommand) => {
-    const opts = thisCommand.opts();
-    globalOptions = {
-      apiKey: opts.apiKey,
-      format: opts.format,
-      color: opts.color,
-      debug: opts.debug,
-      dbHost: opts.dbHost,
-      apiHost: opts.apiHost
-    };
-    updateChalkConfig(opts.color);
-  });
+  $ nile tenants list             List tenants in selected database
+`);
 
-// Function to get the latest options
-const getGlobalOptions = () => globalOptions;
+// Add global options
+addGlobalOptions(cli);
+
+// Configure color settings
+cli.hook('preAction', (thisCommand) => {
+  const opts = thisCommand.opts();
+  updateChalkConfig(opts.color);
+});
 
 // Register commands
-program.addCommand(createAuthCommand(getGlobalOptions));
-program.addCommand(createWorkspaceCommand(getGlobalOptions));
-program.addCommand(createDbCommand(getGlobalOptions));
-program.addCommand(createTenantsCommand(getGlobalOptions));
+cli.addCommand(createConnectCommand(() => cli.opts()));
+cli.addCommand(createWorkspaceCommand(() => cli.opts()));
+cli.addCommand(createDbCommand(() => cli.opts()));
+cli.addCommand(createTenantsCommand(() => cli.opts()));
 
-program.parse(); 
+cli.parse(process.argv); 

@@ -3,14 +3,7 @@ import { Config } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { getAuthToken } from '../lib/authUtils';
 import { theme, table, formatStatus, formatCommand } from '../lib/colors';
-
-interface GlobalOptions {
-  apiKey?: string;
-  format?: 'human' | 'json' | 'csv';
-  color?: boolean;
-  debug?: boolean;
-  dbHost?: string;
-}
+import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 
 type GetOptions = () => GlobalOptions;
 
@@ -26,11 +19,13 @@ Examples:
   ${formatCommand('nile db psql')}                        Connect to selected database
   ${formatCommand('nile db connectionstring', '--psql')}  Get PostgreSQL connection string
   ${formatCommand('nile db delete', '--force')}           Delete selected database without confirmation
-  ${formatCommand('nile db regions')}                     List available regions`);
+  ${formatCommand('nile db regions')}                     List available regions
+
+${getGlobalOptionsHelp()}`);
 
   db
     .command('list')
-    .description('List all databases in the current workspace. Supports --format option for output formatting.')
+    .description('List all databases in the current workspace')
     .action(async () => {
       try {
         const workspace = await Config.getWorkspace();
@@ -40,7 +35,12 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
         const databases = await api.listDatabases(workspace.slug);
 
         if (options.format === 'json') {
@@ -88,7 +88,7 @@ Examples:
   db
     .command('create')
     .description('Create a new database in the specified region')
-    .requiredOption('--name <name>', 'Name of the database to create')
+    .requiredOption('--name <n>', 'Name of the database to create')
     .option('--region <region>', 'Region where the database will be created (if not specified, available regions will be listed)')
     .action(async (cmdOptions) => {
       try {
@@ -99,7 +99,12 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
 
         // If region not provided, list available regions
         if (!cmdOptions.region) {
@@ -137,7 +142,22 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+
+        // If no database name provided, try to get from config
+        if (!databaseName) {
+          const selectedDb = await Config.getDatabase();
+          if (!selectedDb) {
+            throw new Error('No database specified. Please provide a database name or run "nile db select" first');
+          }
+          databaseName = selectedDb.name;
+        }
+
         const database = await api.getDatabase(workspace.slug, databaseName);
 
         if (options.format === 'json') {
@@ -174,7 +194,21 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+
+        // If no database name provided, try to get from config
+        if (!databaseName) {
+          const selectedDb = await Config.getDatabase();
+          if (!selectedDb) {
+            throw new Error('No database specified. Please provide a database name or run "nile db select" first');
+          }
+          databaseName = selectedDb.name;
+        }
 
         if (!cmdOptions.force) {
           console.log(theme.warning(`\n⚠️  WARNING: This will permanently delete database '${theme.bold(databaseName)}' and all its data.`));
@@ -214,7 +248,12 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
         const regions = await api.listRegions(workspace.slug);
 
         if (options.format === 'json') {
@@ -233,22 +272,8 @@ Examples:
           return;
         }
 
-        // Create a nicely formatted table
         console.log(theme.primary('\nAvailable regions:'));
-        
-        // Table header
-        const header = `${table.topLeft}${'─'.repeat(30)}${table.topRight}`;
-        console.log(header);
-        console.log(`${table.vertical}${theme.header(' REGION').padEnd(30)}${table.vertical}`);
-        console.log(`${table.vertical}${theme.border('─'.repeat(29))}${table.vertical}`);
-
-        // Table rows
-        regions.forEach(region => {
-          console.log(`${table.vertical} ${theme.info(region.padEnd(28))}${table.vertical}`);
-        });
-
-        // Table footer
-        console.log(`${table.bottomLeft}${'─'.repeat(30)}${table.bottomRight}`);
+        regions.forEach(region => console.log(theme.info(`- ${region}`)));
       } catch (error) {
         console.error(theme.error('Failed to list regions:'), error);
         process.exit(1);
@@ -256,11 +281,9 @@ Examples:
     });
 
   db
-    .command('psql')
-    .description('Connect to a database using psql')
-    .option('--name <name>', 'Name of the database to connect to (optional if database is selected)')
-    .option('--connection-string <string>', 'PostgreSQL connection string (if not provided, will create new credentials)')
-    .action(async (cmdOptions) => {
+    .command('select <databaseName>')
+    .description('Select a database to use')
+    .action(async (databaseName) => {
       try {
         const workspace = await Config.getWorkspace();
         if (!workspace) {
@@ -269,78 +292,76 @@ Examples:
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+        const database = await api.getDatabase(workspace.slug, databaseName);
+        await Config.setDatabase(database);
+        console.log(theme.success(`Selected database '${theme.bold(database.name)}'`));
+      } catch (error) {
+        console.error(theme.error('Failed to select database:'), error);
+        process.exit(1);
+      }
+    });
 
-        let connectionString = cmdOptions.connectionString;
-
-        // If no connection string provided, create new credentials
-        if (!connectionString) {
-          if (options.debug) {
-            console.log(theme.dim('No connection string provided, creating new credentials...'));
-          }
-          
-          const credentialsResponse = await api.createDatabaseCredentials(workspace.slug, cmdOptions.name);
-
-          if (options.debug) {
-            console.log(theme.dim('Raw credentials response:'), JSON.stringify(credentialsResponse, null, 2));
-          }
-
-          // Extract database info from response
-          const region = credentialsResponse.database.region.toLowerCase();  // e.g., AWS_US_WEST_2 -> aws_us_west_2
-          const regionParts = region.split('_');
-          const regionPrefix = `${regionParts[1]}-${regionParts[2]}-${regionParts[3]}`;  // e.g., us-west-2
-          
-          // Use custom host if provided, otherwise use default with region prefix
-          const dbHost = options.dbHost ? 
-            `${regionPrefix}.${options.dbHost}` : 
-            `${regionPrefix}.db.thenile.dev`;
-
-          const dbPort = 5432;  // Default PostgreSQL port
-          const dbName = credentialsResponse.database.name;  // Use the name from the response
-          const username = credentialsResponse.id;  // Use the credential ID as username
-          const password = credentialsResponse.password;
-
-          if (!username || !password) {
-            throw new Error('Missing required credentials (id or password) in server response');
-          }
-
-          connectionString = `postgres://${username}:${password}@${dbHost}:${dbPort}/${dbName}`;
-          
-          if (options.debug) {
-            // Log connection details without sensitive info
-            console.log(theme.dim('Connection details:'));
-            console.log(theme.dim(`Host: ${dbHost}`));
-            console.log(theme.dim(`Port: ${dbPort}`));
-            console.log(theme.dim(`Database: ${dbName}`));
-            console.log(theme.dim(`Username: ${username}`));
-            console.log(theme.dim('Password: [hidden]'));
-            console.log(theme.dim('\nConnection command:'));
-            console.log(theme.dim(`psql "${connectionString.replace(/:[^:@]+@/, ':***@')}"`));
-          }
+  db
+    .command('psql')
+    .description('Connect to database using psql')
+    .option('--name <n>', 'Database name (overrides selected database)')
+    .action(async (cmdOptions) => {
+      try {
+        const workspace = await Config.getWorkspace();
+        if (!workspace) {
+          throw new Error('No workspace selected. Please run "nile workspace select" first');
         }
 
-        console.log(theme.info(`\nConnecting to database '${theme.bold(cmdOptions.name)}'...`));
-        
-        // Spawn psql process with the connection string
-        const { spawn } = require('child_process');
-        const psql = spawn('psql', [connectionString], {
-          stdio: 'inherit'  // This will connect the psql process to the current terminal
+        // Get database name from command option or config
+        let databaseName = cmdOptions.name;
+        if (!databaseName) {
+          const selectedDb = await Config.getDatabase();
+          if (!selectedDb) {
+            throw new Error('No database specified. Please provide --name option or run "nile db select" first');
+          }
+          databaseName = selectedDb.name;
+        }
+
+        const options = getOptions();
+        const token = await getAuthToken(options);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
         });
 
-        // Handle psql process events
-        psql.on('error', (error: Error) => {
-          if (error.message.includes('ENOENT')) {
-            console.error(theme.error('\nError: psql command not found. Please install PostgreSQL command line tools.'));
+        // Get database connection details
+        const connection = await api.getDatabaseConnection(workspace.slug, databaseName);
+
+        // Construct psql connection string
+        const connectionString = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
+
+        // Execute psql command
+        const { spawn } = require('child_process');
+        const psql = spawn('psql', [connectionString], {
+          stdio: 'inherit'
+        });
+
+        psql.on('error', (error: any) => {
+          if (error.code === 'ENOENT') {
+            console.error(theme.error('\nError: psql command not found. Please install PostgreSQL client tools.'));
             process.exit(1);
           } else {
-            console.error(theme.error('\nFailed to start psql:'), error);
+            console.error(theme.error('\nError executing psql:'), error);
             process.exit(1);
           }
         });
 
         psql.on('exit', (code: number) => {
           if (code !== 0) {
-            console.error(theme.error('\npsql connection terminated with error code:'), code);
+            console.error(theme.error('\npsql exited with code:'), code);
             process.exit(code);
           }
         });
@@ -352,84 +373,45 @@ Examples:
 
   db
     .command('connectionstring')
-    .description('Generate a connection string for the database')
-    .option('--name <name>', 'Name of the database to connect to (optional if database is selected)')
-    .requiredOption('--psql', 'Generate PostgreSQL connection string')
+    .description('Get database connection string')
+    .option('--name <n>', 'Database name (overrides selected database)')
+    .requiredOption('--psql', 'Get PostgreSQL connection string')
     .action(async (cmdOptions) => {
       try {
-        // Get database name from options or config
-        let databaseName = cmdOptions.name;
-        if (!databaseName) {
-          const database = await Config.getDatabase();
-          if (!database?.name) {
-            throw new Error('No database specified. Please provide --name flag or run "nile db select" first');
-          }
-          databaseName = database.name;
-        }
-
         const workspace = await Config.getWorkspace();
         if (!workspace) {
           throw new Error('No workspace selected. Please run "nile workspace select" first');
+        }
+
+        // Get database name from command option or config
+        let databaseName = cmdOptions.name;
+        if (!databaseName) {
+          const selectedDb = await Config.getDatabase();
+          if (!selectedDb) {
+            throw new Error('No database specified. Please provide --name option or run "nile db select" first');
+          }
+          databaseName = selectedDb.name;
         }
 
         const options = getOptions();
         const token = await getAuthToken(options);
-        const api = new NileAPI(token, options.debug);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
 
-        if (options.debug) {
-          console.log(theme.dim('Creating new credentials...'));
-        }
-        
-        const credentialsResponse = await api.createDatabaseCredentials(workspace.slug, databaseName);
+        // Get database connection details
+        const connection = await api.getDatabaseConnection(workspace.slug, databaseName);
 
-        if (options.debug) {
-          console.log(theme.dim('Raw credentials response:'), JSON.stringify(credentialsResponse, null, 2));
-        }
+        // Construct psql connection string
+        const connectionString = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
 
-        // Extract database info from response
-        const region = credentialsResponse.database.region.toLowerCase();
-        const regionParts = region.split('_');
-        const regionPrefix = `${regionParts[1]}-${regionParts[2]}-${regionParts[3]}`;
-        
-        // Use custom host if provided, otherwise use default with region prefix
-        const dbHost = options.dbHost ? 
-          `${regionPrefix}.${options.dbHost}` : 
-          `${regionPrefix}.db.thenile.dev`;
-
-        const dbPort = 5432;
-        const dbName = credentialsResponse.database.name;
-        const username = credentialsResponse.id;
-        const password = credentialsResponse.password;
-
-        if (!username || !password) {
-          throw new Error('Missing required credentials (id or password) in server response');
-        }
-
-        // PostgreSQL format: postgres://username:password@host:port/database
-        const connectionString = `postgres://${username}:${password}@${dbHost}:${dbPort}/${dbName}`;
-        // Print only the connection string without any formatting
+        // Output the connection string
         console.log(connectionString);
       } catch (error) {
-        console.error(theme.error('Failed to generate connection string:'), error);
-        process.exit(1);
-      }
-    });
-
-  db
-    .command('select <databaseName>')
-    .description('Select a database to use as default')
-    .action(async (databaseName) => {
-      try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
-        }
-
-        // Save the database name in config
-        await Config.setDatabase({ name: databaseName });
-        console.log(theme.success(`Selected database: ${theme.bold(databaseName)}`));
-      } catch (error) {
-        console.error(theme.error('Failed to select database:'), error);
+        console.error(theme.error('Failed to get connection string:'), error);
         process.exit(1);
       }
     });
