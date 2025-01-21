@@ -131,6 +131,25 @@ nile db psql --name mydb                    # Creates new credentials and connec
 nile db psql --name mydb --connection-string "postgres://..."   # Uses provided connection string
 ```
 
+### Tenants
+```bash
+# List all tenants
+nile tenants list
+
+# Create a new tenant
+nile tenants create --name "My Tenant"              # Create with auto-generated ID
+nile tenants create --name "My Tenant" --id custom-id   # Create with custom ID
+
+# Update a tenant
+nile tenants update --id tenant-123 --new_name "New Name"   # Update tenant name
+
+# Delete a tenant
+nile tenants delete --id tenant-123                 # Delete by ID
+
+# List tenants in specific workspace/database
+nile tenants list --workspace myworkspace --db mydb
+```
+
 ## Output Formats
 
 The CLI supports multiple output formats for easy integration with other tools:
@@ -189,7 +208,25 @@ nile --debug db list
    postgres://01947d5b-ba0a-7bdd-9770-788de783cd61:your-password@us-west-2.db.thenile.dev:5432/mydb
    ```
 
-3. **Automation Scripts**
+3. **Managing Tenants**
+   ```bash
+   # Create a new tenant
+   nile tenants create --name "Acme Corp"
+
+   # Create tenant with specific ID
+   nile tenants create --name "Acme Corp" --id acme-123
+
+   # List all tenants
+   nile tenants list
+
+   # Update tenant name
+   nile tenants update --id acme-123 --new_name "Acme Corporation"
+
+   # Delete tenant
+   nile tenants delete --id acme-123
+   ```
+
+4. **Automation Scripts**
    ```bash
    # Use JSON output and no colors
    nile --format json --no-color db list
@@ -198,21 +235,10 @@ nile --debug db list
    nile db delete mydb --force
    ```
 
-4. **Checking Database Status**
+5. **Checking Database Status**
    ```bash
    # Get detailed database info
    nile db show mydb
-   ```
-
-5. **Connecting to Databases**
-   ```bash
-   # First ensure PostgreSQL client tools are installed:
-   # - On macOS: brew install postgresql
-   # - On Ubuntu/Debian: apt-get install postgresql-client
-   # - On Windows: Install from https://www.postgresql.org/download/windows/
-   
-   # Then connect to your database
-   nile db psql --name mydb
    ```
 
 ## Contributing

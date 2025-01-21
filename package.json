@@ -18,10 +18,12 @@
   "license": "ISC",
   "dependencies": {
     "@niledatabase/react": "^3.0.0-alpha.40",
+    "@types/pg": "^8.11.10",
     "axios": "^1.6.0",
     "chalk": "^4.1.2",
     "commander": "^11.0.0",
-    "open": "^8.4.2"
+    "open": "^8.4.2",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",

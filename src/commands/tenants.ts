@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import postgres from 'postgres';
+import { Client } from 'pg';
 import { Config } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, table, formatCommand } from '../lib/colors';
@@ -20,7 +20,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
   return { workspaceSlug, databaseName };
 }
 
-async function getPostgresClient(api: NileAPI, workspaceSlug: string, databaseName: string, options: GlobalOptions): Promise<postgres.Sql<{}>> {
+async function getPostgresClient(api: NileAPI, workspaceSlug: string, databaseName: string, options: GlobalOptions): Promise<Client> {
   // Get database credentials from control plane
   console.log(theme.dim('\nFetching database credentials...'));
   const credentials = await api.createDatabaseCredentials(workspaceSlug, databaseName);
@@ -39,7 +39,17 @@ async function getPostgresClient(api: NileAPI, workspaceSlug: string, databaseNa
     `${regionPrefix}.${options.dbHost}` : 
     `${regionPrefix}.db.thenile.dev`;
 
-  const connectionString = `postgres://${credentials.id}:${credentials.password}@${dbHost}:5432/${databaseName}`;
+  // Create postgres client
+  const client = new Client({
+    host: dbHost,
+    port: 5432,
+    database: databaseName,
+    user: credentials.id,
+    password: credentials.password,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
 
   if (options.debug) {
     console.log(theme.dim('\nConnecting to PostgreSQL:'));
@@ -49,18 +59,9 @@ async function getPostgresClient(api: NileAPI, workspaceSlug: string, databaseNa
     console.log();
   }
 
-  // Create postgres client with SSL configuration to accept self-signed certificates
-  return postgres(connectionString, {
-    ssl: {
-      rejectUnauthorized: false
-    },
-    prepare: false,  // Disable prepared statements to avoid connection issues
-    debug: (connection_id, query, params, types) => {
-      console.log(theme.dim('\nPostgres Query:'));
-      console.log(theme.dim('Query:'), query);
-      console.log(theme.dim('Parameters:'), params);
-    }
-  });
+  // Connect to the database
+  await client.connect();
+  return client;
 }
 
 export function createTenantsCommand(getGlobalOptions: () => GlobalOptions): Command {
@@ -78,11 +79,16 @@ Examples:
 
 ${getGlobalOptionsHelp()}`);
 
-  tenants
-    .command('list')
+  const listCmd = new Command('list')
     .description('List all tenants in the database')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile tenants list')}                                List all tenants
+  ${formatCommand('nile tenants list', '--workspace myworkspace')}     List tenants in specific workspace
+  ${formatCommand('nile tenants list', '--db mydb')}                  List tenants in specific database
+    `)
     .action(async () => {
-      let sql: postgres.Sql<{}> | undefined;
+      let client: Client | undefined;
       try {
         const options = getGlobalOptions();
         const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
@@ -93,10 +99,11 @@ ${getGlobalOptionsHelp()}`);
           dbHost: options.dbHost
         });
 
-        sql = await getPostgresClient(api, workspaceSlug, databaseName, options);
+        client = await getPostgresClient(api, workspaceSlug, databaseName, options);
         
         console.log(theme.dim('\nFetching tenants...'));
-        const tenants = await sql`SELECT * FROM tenants`;
+        const result = await client.query('SELECT * FROM tenants');
+        const tenants = result.rows;
         
         if (tenants.length === 0) {
           console.log('No tenants found');
@@ -113,19 +120,23 @@ ${getGlobalOptionsHelp()}`);
         console.error(theme.error('Failed to list tenants:'), error.message || error);
         process.exit(1);
       } finally {
-        if (sql) {
-          await sql.end();
+        if (client) {
+          await client.end();
         }
       }
     });
 
-  tenants
-    .command('create')
+  const createCmd = new Command('create')
     .description('Create a new tenant')
     .requiredOption('--name <name>', 'Name of the tenant')
     .option('--id <id>', 'Optional UUID for the tenant')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile tenants create', '--name "My Tenant"')}              Create a tenant with auto-generated ID
+  ${formatCommand('nile tenants create', '--name "My Tenant" --id custom-id')}  Create tenant with custom ID
+    `)
     .action(async (cmdOptions) => {
-      let sql: postgres.Sql<{}> | undefined;
+      let client: Client | undefined;
       try {
         const options = getGlobalOptions();
         const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
@@ -136,62 +147,70 @@ ${getGlobalOptionsHelp()}`);
           dbHost: options.dbHost
         });
 
-        sql = await getPostgresClient(api, workspaceSlug, databaseName, options);
+        client = await getPostgresClient(api, workspaceSlug, databaseName, options);
         
         console.log(theme.dim(`\nCreating tenant...with name: ${cmdOptions.name} and id: ${cmdOptions.id}`));
-        let tenant;
+        let result;
         if (cmdOptions.id) {
-          tenant = await sql`
-            INSERT INTO tenants 
-            (id, name) 
-            VALUES 
-            (${cmdOptions.id}, ${cmdOptions.name}) 
-            RETURNING *
-          `;
+          result = await client.query(
+            'INSERT INTO tenants (id, name) VALUES ($1, $2) RETURNING *',
+            [cmdOptions.id, cmdOptions.name]
+          );
         } else {
-          tenant = await sql`
-            INSERT INTO tenants 
-            (name) 
-            VALUES 
-            (${cmdOptions.name}) 
-            RETURNING *
-          `;
+          result = await client.query(
+            'INSERT INTO tenants (name) VALUES ($1) RETURNING *',
+            [cmdOptions.name]
+          );
         }
         
+        const tenant = result.rows[0];
         console.log('\nTenant created:');
-        console.log(`${theme.dim('ID:')} ${tenant[0].id}`);
-        console.log(`${theme.dim('Name:')} ${tenant[0].name}`);
+        console.log(`${theme.dim('ID:')} ${tenant.id}`);
+        console.log(`${theme.dim('Name:')} ${tenant.name}`);
       } catch (error: any) {
         console.error(theme.error('Failed to create tenant:'), error.message || error);
         process.exit(1);
       } finally {
-        if (sql) {
-          await sql.end();
+        if (client) {
+          await client.end();
         }
       }
     });
 
-  tenants
-    .command('delete <tenantId>')
+  const deleteCmd = new Command('delete')
     .description('Delete a tenant')
-    .action(async (tenantId, options) => {
-      let sql: postgres.Sql<{}> | undefined;
+    .requiredOption('--id <id>', 'ID of the tenant to delete')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile tenants delete', '--id tenant-123')}                Delete a tenant by ID
+  ${formatCommand('nile tenants delete', '--id 550e8400-e29b-41d4-a716-446655440000')}  Delete tenant by UUID
+    `)
+    .action(async (cmdOptions) => {
+      let client: Client | undefined;
       try {
-        // Get both command-specific and parent options
-        const allOptions = { ...options, ...tenants.opts() };
-        const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(allOptions);
-        const globalOptions = getGlobalOptions();
+        const options = getGlobalOptions();
+        const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
         const api = new NileAPI({
-          token: await getAuthToken(globalOptions),
-          debug: globalOptions.debug,
-          controlPlaneUrl: globalOptions.globalHost,
-          dbHost: globalOptions.dbHost
+          token: await getAuthToken(options),
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
         });
 
-        console.log(theme.dim('\nDeleting tenant...'));
-        sql = await getPostgresClient(api, workspaceSlug, databaseName, globalOptions);
-        await sql`DELETE FROM tenants WHERE id = ${tenantId}`;
-        console.log(theme.success(`\nTenant '${theme.bold(tenantId)}' deleted successfully.`));
+        // First verify the tenant exists
+        client = await getPostgresClient(api, workspaceSlug, databaseName, options);
+        const checkResult = await client.query('SELECT id, name FROM tenants WHERE id = $1', [cmdOptions.id]);
+        
+        if (checkResult.rowCount === 0) {
+          throw new Error(`Tenant with ID '${cmdOptions.id}' not found`);
+        }
+
+        const tenant = checkResult.rows[0];
+        console.log(theme.dim(`\nDeleting tenant '${tenant.name}' (${tenant.id})...`));
+        
+        // Delete the tenant
+        await client.query('DELETE FROM tenants WHERE id = $1', [cmdOptions.id]);
+        console.log(theme.success(`\nTenant '${theme.bold(tenant.name)}' deleted successfully.`));
       } catch (error) {
         if (error instanceof Error) {
           console.error(theme.error('\nFailed to delete tenant:'), error.message);
@@ -200,38 +219,49 @@ ${getGlobalOptionsHelp()}`);
         }
         process.exit(1);
       } finally {
-        if (sql) {
-          await sql.end();
+        if (client) {
+          await client.end();
         }
       }
     });
 
-  tenants
-    .command('update <tenantId>')
+  const updateCmd = new Command('update')
     .description('Update a tenant')
-    .requiredOption('--name <name>', 'New name for the tenant')
-    .action(async (tenantId, options) => {
-      let sql: postgres.Sql<{}> | undefined;
+    .requiredOption('--id <id>', 'ID of the tenant to update')
+    .requiredOption('--new_name <name>', 'New name for the tenant')
+    .addHelpText('after', `
+Examples:
+  ${formatCommand('nile tenants update', '--id tenant-123 --new_name "New Name"')}  Update tenant name
+  ${formatCommand('nile tenants update', '--id 550e8400-e29b-41d4-a716-446655440000 --new_name "New Name"')}  Update tenant with UUID
+    `)
+    .action(async (cmdOptions) => {
+      let client: Client | undefined;
       try {
-        // Get both command-specific and parent options
-        const allOptions = { ...options, ...tenants.opts() };
-        const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(allOptions);
-        const globalOptions = getGlobalOptions();
+        const options = getGlobalOptions();
+        const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
         const api = new NileAPI({
-          token: await getAuthToken(globalOptions),
-          debug: globalOptions.debug,
-          controlPlaneUrl: globalOptions.globalHost,
-          dbHost: globalOptions.dbHost
+          token: await getAuthToken(options),
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
         });
 
         console.log(theme.dim('\nUpdating tenant...'));
-        sql = await getPostgresClient(api, workspaceSlug, databaseName, globalOptions);
-        const tenant = await sql`UPDATE tenants SET name = ${options.name} WHERE id = ${tenantId} RETURNING *`;
+        client = await getPostgresClient(api, workspaceSlug, databaseName, options);
+        const result = await client.query(
+          'UPDATE tenants SET name = $1 WHERE id = $2 RETURNING *',
+          [cmdOptions.new_name, cmdOptions.id]
+        );
 
-        console.log(theme.success(`\nTenant '${theme.bold(tenantId)}' updated successfully.`));
+        if (result.rowCount === 0) {
+          throw new Error(`Tenant with ID '${cmdOptions.id}' not found`);
+        }
+
+        const tenant = result.rows[0];
+        console.log(theme.success(`\nTenant '${theme.bold(tenant.id)}' updated successfully.`));
         console.log(theme.primary('\nUpdated tenant details:'));
-        console.log(`${theme.secondary('ID:')}   ${theme.primary(tenant[0].id)}`);
-        console.log(`${theme.secondary('Name:')} ${theme.info(tenant[0].name)}`);
+        console.log(`${theme.secondary('ID:')}   ${theme.primary(tenant.id)}`);
+        console.log(`${theme.secondary('Name:')} ${theme.info(tenant.name)}`);
       } catch (error) {
         if (error instanceof Error) {
           console.error(theme.error('\nFailed to update tenant:'), error.message);
@@ -240,11 +270,16 @@ ${getGlobalOptionsHelp()}`);
         }
         process.exit(1);
       } finally {
-        if (sql) {
-          await sql.end();
+        if (client) {
+          await client.end();
         }
       }
     });
+
+  tenants.addCommand(listCmd);
+  tenants.addCommand(createCmd);
+  tenants.addCommand(deleteCmd);
+  tenants.addCommand(updateCmd);
 
   return tenants;
 } 
