@@ -1,23 +1,30 @@
 import { Command } from 'commander';
 import { Client } from 'pg';
-import { Config } from '../lib/config';
+import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, table, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { getAuthToken } from '../lib/authUtils';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
-  const workspaceSlug = options.workspace || (await Config.getWorkspace())?.slug;
-  if (!workspaceSlug) {
-    throw new Error('No workspace specified. Please run "nile workspace select" first or use --workspace flag');
-  }
+    const configManager = new ConfigManager();
+    const workspaceSlug = configManager.getWorkspace(options);
+    if (!workspaceSlug) {
+        throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
+    }
 
-  const databaseName = options.db || (await Config.getDatabase())?.name;
-  if (!databaseName) {
-    throw new Error('No database specified. Please run "nile db select" first or use --db flag');
-  }
+    const databaseName = configManager.getDatabase(options);
+    if (!databaseName) {
+        throw new Error('No database specified. Use one of:\n' +
+            '1. --db flag\n' +
+            '2. nile config --db <name>\n' +
+            '3. NILE_DB environment variable');
+    }
 
-  return { workspaceSlug, databaseName };
+    return { workspaceSlug, databaseName };
 }
 
 async function getPostgresClient(api: NileAPI, workspaceSlug: string, databaseName: string, options: GlobalOptions): Promise<Client> {

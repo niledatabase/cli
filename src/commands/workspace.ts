@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { Config } from '../lib/config';
+import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { getAuthToken } from '../lib/authUtils';
 import { theme, table, formatCommand } from '../lib/colors';
@@ -22,15 +22,14 @@ export function createWorkspaceCommand(getOptions: GetOptions): Command {
     .addHelpText('after', `
 Examples:
   ${formatCommand('nile workspace list')}                List all workspaces
-  ${formatCommand('nile workspace select demo')}         Select a workspace to use
   ${formatCommand('nile workspace show')}                Show current workspace
-  ${formatCommand('nile workspace list', '--format json')}  List workspaces in JSON format
+  ${formatCommand('nile config --workspace <name>')}     Set default workspace
 
 ${getGlobalOptionsHelp()}`);
 
   workspace
     .command('list')
-    .description('List all available workspaces')
+    .description('List all workspaces')
     .action(async () => {
       try {
         const options = getOptions();
@@ -90,11 +89,21 @@ ${getGlobalOptionsHelp()}`);
     });
 
   workspace
-    .command('select <workspaceSlug>')
-    .description('Select a workspace to use')
-    .action(async (workspaceSlug) => {
+    .command('show')
+    .description('Show current workspace')
+    .action(async () => {
       try {
         const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        
+        if (!workspaceSlug) {
+          console.log(theme.warning('No workspace selected'));
+          console.log(theme.secondary('Run "nile config --workspace <n>" to set a workspace'));
+          return;
+        }
+
+        // Get workspace details from API
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -103,32 +112,13 @@ ${getGlobalOptionsHelp()}`);
           dbHost: options.dbHost
         });
         const workspace = await api.getWorkspace(workspaceSlug);
-        await Config.setWorkspace(workspace);
-        console.log(theme.success(`Selected workspace '${theme.bold(workspace.name)}'`));
-      } catch (error: any) {
-        console.error(theme.error('Failed to select workspace:'), error.message || error);
-        process.exit(1);
-      }
-    });
 
-  workspace
-    .command('show')
-    .description('Show current workspace')
-    .action(async () => {
-      try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          console.log(theme.warning('No workspace selected'));
-          console.log(theme.secondary('Run "nile workspace select <name>" to select a workspace'));
-          return;
-        }
-
-        if (getOptions().format === 'json') {
+        if (options.format === 'json') {
           console.log(JSON.stringify(workspace, null, 2));
           return;
         }
 
-        if (getOptions().format === 'csv') {
+        if (options.format === 'csv') {
           console.log('NAME,SLUG');
           console.log(`${workspace.name},${workspace.slug}`);
           return;

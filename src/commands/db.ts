@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { Config } from '../lib/config';
+import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { getAuthToken } from '../lib/authUtils';
 import { theme, table, formatStatus, formatCommand } from '../lib/colors';
@@ -9,31 +9,32 @@ type GetOptions = () => GlobalOptions;
 
 export function createDbCommand(getOptions: GetOptions): Command {
   const db = new Command('db')
-    .description('Manage Nile databases')
+    .description('Manage databases')
     .addHelpText('after', `
 Examples:
-  ${formatCommand('nile db list')}                        List all databases in current workspace
-  ${formatCommand('nile db create', '--name mydb --region AWS_US_WEST_2')}   Create a new database
-  ${formatCommand('nile db select mydb')}                 Select a default database
-  ${formatCommand('nile db show')}                        Show details of selected database
-  ${formatCommand('nile db psql')}                        Connect to selected database
-  ${formatCommand('nile db connectionstring', '--psql')}  Get PostgreSQL connection string
-  ${formatCommand('nile db delete', '--force')}           Delete selected database without confirmation
-  ${formatCommand('nile db regions')}                     List available regions
+  ${formatCommand('nile db list')}                       List all databases
+  ${formatCommand('nile db show mydb')}                  Show database details
+  ${formatCommand('nile db create', '--name mydb --region AWS_US_WEST_2')}  Create a database
+  ${formatCommand('nile db delete mydb')}                Delete a database
+  ${formatCommand('nile config --db <n>')}           Set default database
 
 ${getGlobalOptionsHelp()}`);
 
   db
     .command('list')
-    .description('List all databases in the current workspace')
+    .description('List all databases')
     .action(async () => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
-        const options = getOptions();
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -41,7 +42,7 @@ ${getGlobalOptionsHelp()}`);
           controlPlaneUrl: options.globalHost,
           dbHost: options.dbHost
         });
-        const databases = await api.listDatabases(workspace.slug);
+        const databases = await api.listDatabases(workspaceSlug);
 
         if (options.format === 'json') {
           console.log(JSON.stringify(databases, null, 2));
@@ -57,12 +58,12 @@ ${getGlobalOptionsHelp()}`);
         }
 
         if (databases.length === 0) {
-          console.log(theme.warning(`\nNo databases found in workspace '${theme.bold(workspace.name)}'`));
+          console.log(theme.warning(`\nNo databases found in workspace '${theme.bold(workspaceSlug)}'`));
           return;
         }
 
         // Create a nicely formatted table
-        console.log(theme.primary(`\nDatabases in workspace '${theme.bold(workspace.name)}':`));
+        console.log(theme.primary(`\nDatabases in workspace '${theme.bold(workspaceSlug)}':`));
         
         // Table header
         const header = `${table.topLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(15)}${table.cross}${'─'.repeat(10)}${table.topRight}`;
@@ -73,7 +74,7 @@ ${getGlobalOptionsHelp()}`);
         // Table rows
         databases.forEach((db) => {
           console.log(
-            `${table.vertical} ${theme.primary(db.name.padEnd(18))}${table.vertical} ${theme.info(db.region.padEnd(13))}${table.vertical} ${formatStatus(db.status.padEnd(8))}${table.vertical}`
+            `${table.vertical} ${theme.primary(db.name.padEnd(18))}${table.vertical} ${theme.info(db.region.padEnd(13))}${table.vertical} ${formatStatus(db.status).padEnd(8)}${table.vertical}`
           );
         });
 
@@ -86,18 +87,79 @@ ${getGlobalOptionsHelp()}`);
     });
 
   db
-    .command('create')
-    .description('Create a new database in the specified region')
-    .requiredOption('--name <n>', 'Name of the database to create')
-    .option('--region <region>', 'Region where the database will be created (if not specified, available regions will be listed)')
-    .action(async (cmdOptions) => {
+    .command('show [databaseName]')
+    .description('Show database details')
+    .action(async (databaseName) => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
+        const token = await getAuthToken(options);
+        const api = new NileAPI({
+          token,
+          debug: options.debug,
+          controlPlaneUrl: options.globalHost,
+          dbHost: options.dbHost
+        });
+
+        // If no database name provided, try to get from config
+        if (!databaseName) {
+          databaseName = configManager.getDatabase(options);
+          if (!databaseName) {
+            throw new Error('No database specified. Use one of:\n' +
+              '1. --db flag\n' +
+              '2. nile config --db <name>\n' +
+              '3. NILE_DB environment variable');
+          }
+        }
+
+        const database = await api.getDatabase(workspaceSlug, databaseName);
+
+        if (options.format === 'json') {
+          console.log(JSON.stringify(database, null, 2));
+          return;
+        }
+
+        if (options.format === 'csv') {
+          console.log('NAME,REGION,STATUS');
+          console.log(`${database.name},${database.region},${database.status}`);
+          return;
+        }
+
+        console.log(theme.primary('\nDatabase details:'));
+        console.log(`${theme.secondary('Name:')}    ${theme.primary(database.name)}`);
+        console.log(`${theme.secondary('Region:')}  ${theme.info(database.region)}`);
+        console.log(`${theme.secondary('Status:')}  ${formatStatus(database.status)}`);
+      } catch (error) {
+        console.error(theme.error('Failed to get database:'), error);
+        process.exit(1);
+      }
+    });
+
+  db
+    .command('create')
+    .description('Create a new database')
+    .requiredOption('--name <n>', 'Database name')
+    .requiredOption('--region <r>', 'Region (use "nile db regions" to list available regions)')
+    .action(async (cmdOptions) => {
+      try {
         const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
+        }
+
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -108,7 +170,7 @@ ${getGlobalOptionsHelp()}`);
 
         // If region not provided, list available regions
         if (!cmdOptions.region) {
-          const regions = await api.listRegions(workspace.slug);
+          const regions = await api.listRegions(workspaceSlug);
           console.log(theme.primary('\nAvailable regions:'));
           regions.forEach(region => console.log(theme.info(`- ${region}`)));
           console.log(theme.secondary('\nPlease specify a region using --region flag'));
@@ -116,7 +178,7 @@ ${getGlobalOptionsHelp()}`);
         }
         
         console.log(theme.primary(`Creating database '${theme.bold(cmdOptions.name)}' in region '${theme.info(cmdOptions.region)}'...`));
-        const database = await api.createDatabase(workspace.slug, cmdOptions.name, cmdOptions.region);
+        const database = await api.createDatabase(workspaceSlug, cmdOptions.name, cmdOptions.region);
         console.log(theme.success(`Database '${theme.bold(database.name)}' created successfully.`));
         
         // Show database details
@@ -131,68 +193,21 @@ ${getGlobalOptionsHelp()}`);
     });
 
   db
-    .command('show [databaseName]')
-    .description('Show detailed information about a specific database')
-    .action(async (databaseName) => {
-      try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
-        }
-
-        const options = getOptions();
-        const token = await getAuthToken(options);
-        const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
-        });
-
-        // If no database name provided, try to get from config
-        if (!databaseName) {
-          const selectedDb = await Config.getDatabase();
-          if (!selectedDb) {
-            throw new Error('No database specified. Please provide a database name or run "nile db select" first');
-          }
-          databaseName = selectedDb.name;
-        }
-
-        const database = await api.getDatabase(workspace.slug, databaseName);
-
-        if (options.format === 'json') {
-          console.log(JSON.stringify(database, null, 2));
-          return;
-        }
-
-        if (options.format === 'csv') {
-          console.log('NAME,REGION,STATUS');
-          console.log(`${database.name},${database.region},${database.status}`);
-          return;
-        }
-
-        console.log(theme.primary(`\nDatabase '${theme.bold(database.name)}' details:`));
-        console.log(`${theme.secondary('Name:')}    ${theme.primary(database.name)}`);
-        console.log(`${theme.secondary('Region:')}  ${theme.info(database.region)}`);
-        console.log(`${theme.secondary('Status:')}  ${formatStatus(database.status)}`);
-      } catch (error) {
-        console.error(theme.error('Failed to get database details:'), error);
-        process.exit(1);
-      }
-    });
-
-  db
     .command('delete [databaseName]')
     .description('Delete a database permanently')
     .option('--force', 'Skip confirmation prompt (use with caution)')
     .action(async (databaseName, cmdOptions) => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
-        const options = getOptions();
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -203,11 +218,13 @@ ${getGlobalOptionsHelp()}`);
 
         // If no database name provided, try to get from config
         if (!databaseName) {
-          const selectedDb = await Config.getDatabase();
-          if (!selectedDb) {
-            throw new Error('No database specified. Please provide a database name or run "nile db select" first');
+          databaseName = configManager.getDatabase(options);
+          if (!databaseName) {
+            throw new Error('No database specified. Use one of:\n' +
+              '1. --db flag\n' +
+              '2. nile config --db <name>\n' +
+              '3. NILE_DB environment variable');
           }
-          databaseName = selectedDb.name;
         }
 
         if (!cmdOptions.force) {
@@ -228,7 +245,7 @@ ${getGlobalOptionsHelp()}`);
         }
 
         console.log(theme.primary(`\nDeleting database '${theme.bold(databaseName)}'...`));
-        await api.deleteDatabase(workspace.slug, databaseName);
+        await api.deleteDatabase(workspaceSlug, databaseName);
         console.log(theme.success('Database deleted successfully.'));
       } catch (error) {
         console.error(theme.error('Failed to delete database:'), error);
@@ -241,12 +258,16 @@ ${getGlobalOptionsHelp()}`);
     .description('List all available regions for database creation')
     .action(async () => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
-        const options = getOptions();
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -254,7 +275,7 @@ ${getGlobalOptionsHelp()}`);
           controlPlaneUrl: options.globalHost,
           dbHost: options.dbHost
         });
-        const regions = await api.listRegions(workspace.slug);
+        const regions = await api.listRegions(workspaceSlug);
 
         if (options.format === 'json') {
           console.log(JSON.stringify(regions, null, 2));
@@ -281,54 +302,33 @@ ${getGlobalOptionsHelp()}`);
     });
 
   db
-    .command('select <databaseName>')
-    .description('Select a database to use')
-    .action(async (databaseName) => {
-      try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
-        }
-
-        const options = getOptions();
-        const token = await getAuthToken(options);
-        const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
-        });
-        const database = await api.getDatabase(workspace.slug, databaseName);
-        await Config.setDatabase(database);
-        console.log(theme.success(`Selected database '${theme.bold(database.name)}'`));
-      } catch (error) {
-        console.error(theme.error('Failed to select database:'), error);
-        process.exit(1);
-      }
-    });
-
-  db
     .command('psql')
     .description('Connect to database using psql')
     .option('--name <n>', 'Database name (overrides selected database)')
     .action(async (cmdOptions) => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
         // Get database name from command option or config
         let databaseName = cmdOptions.name;
         if (!databaseName) {
-          const selectedDb = await Config.getDatabase();
-          if (!selectedDb) {
-            throw new Error('No database specified. Please provide --name option or run "nile db select" first');
+          databaseName = configManager.getDatabase(options);
+          if (!databaseName) {
+            throw new Error('No database specified. Use one of:\n' +
+              '1. --db flag\n' +
+              '2. nile config --db <name>\n' +
+              '3. NILE_DB environment variable');
           }
-          databaseName = selectedDb.name;
         }
 
-        const options = getOptions();
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -338,7 +338,7 @@ ${getGlobalOptionsHelp()}`);
         });
 
         // Get database connection details
-        const connection = await api.getDatabaseConnection(workspace.slug, databaseName);
+        const connection = await api.getDatabaseConnection(workspaceSlug, databaseName);
 
         // Construct psql connection string
         const connectionString = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
@@ -378,22 +378,28 @@ ${getGlobalOptionsHelp()}`);
     .requiredOption('--psql', 'Get PostgreSQL connection string')
     .action(async (cmdOptions) => {
       try {
-        const workspace = await Config.getWorkspace();
-        if (!workspace) {
-          throw new Error('No workspace selected. Please run "nile workspace select" first');
+        const options = getOptions();
+        const configManager = new ConfigManager();
+        const workspaceSlug = configManager.getWorkspace(options);
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <name>\n' +
+            '3. NILE_WORKSPACE environment variable');
         }
 
         // Get database name from command option or config
         let databaseName = cmdOptions.name;
         if (!databaseName) {
-          const selectedDb = await Config.getDatabase();
-          if (!selectedDb) {
-            throw new Error('No database specified. Please provide --name option or run "nile db select" first');
+          databaseName = configManager.getDatabase(options);
+          if (!databaseName) {
+            throw new Error('No database specified. Use one of:\n' +
+              '1. --db flag\n' +
+              '2. nile config --db <name>\n' +
+              '3. NILE_DB environment variable');
           }
-          databaseName = selectedDb.name;
         }
 
-        const options = getOptions();
         const token = await getAuthToken(options);
         const api = new NileAPI({
           token,
@@ -403,7 +409,7 @@ ${getGlobalOptionsHelp()}`);
         });
 
         // Get database connection details
-        const connection = await api.getDatabaseConnection(workspace.slug, databaseName);
+        const connection = await api.getDatabaseConnection(workspaceSlug, databaseName);
 
         // Construct psql connection string
         const connectionString = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
