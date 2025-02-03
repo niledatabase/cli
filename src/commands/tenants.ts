@@ -6,8 +6,8 @@ import { theme, table, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
-    const configManager = new ConfigManager();
-    const workspaceSlug = configManager.getWorkspace(options);
+    const configManager = new ConfigManager(options);
+    const workspaceSlug = configManager.getWorkspace();
     if (!workspaceSlug) {
         throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -15,7 +15,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
             '3. NILE_WORKSPACE environment variable');
     }
 
-    const databaseName = configManager.getDatabase(options);
+    const databaseName = configManager.getDatabase();
     if (!databaseName) {
         throw new Error('No database specified. Use one of:\n' +
             '1. --db flag\n' +
@@ -99,13 +99,12 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const configManager = new ConfigManager();
-          configManager.initializeWithOptions(options);
+          const configManager = new ConfigManager(options);
           const token = await configManager.getToken();
           const api = new NileAPI({
             token: configManager.getToken(),
-            dbHost: configManager.getDbHost(options),
-            controlPlaneUrl: configManager.getGlobalHost(options),
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
             debug: options.debug
           });
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
@@ -149,12 +148,11 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const configManager = new ConfigManager();
-          configManager.initializeWithOptions(options);
+          const configManager = new ConfigManager(options);
           const api = new NileAPI({
             token: configManager.getToken(),
-            dbHost: configManager.getDbHost(options),
-            controlPlaneUrl: configManager.getGlobalHost(options),
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
           });
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
@@ -199,13 +197,12 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const configManager = new ConfigManager();
-          configManager.initializeWithOptions(options);
+          const configManager = new ConfigManager(options);
           const token = await configManager.getToken();
           const api = new NileAPI({
             token,
-            dbHost: configManager.getDbHost(options),
-            controlPlaneUrl: configManager.getGlobalHost(options),
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
           });
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
 
@@ -246,12 +243,11 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const configManager = new ConfigManager();
-          configManager.initializeWithOptions(options);
+          const configManager = new ConfigManager(options);
           const api = new NileAPI({
             token: configManager.getToken(),
-            dbHost: configManager.getDbHost(options),
-            controlPlaneUrl: configManager.getGlobalHost(options),
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
           });
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
 

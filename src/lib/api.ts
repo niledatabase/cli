@@ -13,7 +13,7 @@ export interface CreateTenantRequest {
 }
 
 export interface NileAPIOptions {
-  token: string;
+  token: string | undefined;
   debug?: boolean;
   controlPlaneUrl?: string;
   dbHost?: string;
@@ -44,6 +44,9 @@ export class NileAPI {
 
   constructor(options: NileAPIOptions) {
     this.debug = options.debug || false;
+    if (!options.token) {
+      throw new Error('Token is required');
+    }
     this.token = options.token;
     
     // Handle URL override

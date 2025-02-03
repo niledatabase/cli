@@ -15,15 +15,23 @@ export interface NileConfig {
 }
 
 export class ConfigManager {
+    private globalOptions: GlobalOptions;
     private configPath: string;
     private credentialsPath: string;
     private config: NileConfig = {};
 
-    constructor() {
+    constructor(globalOptions: GlobalOptions) {
+        this.globalOptions = globalOptions;
         const configDir = path.join(os.homedir(), '.nile');
         this.configPath = path.join(configDir, 'config.json');
         this.credentialsPath = path.join(configDir, 'credentials.json');
         this.loadConfig();
+        if (globalOptions.authUrl) {
+            this.config.authUrl = globalOptions.authUrl;
+        }
+        if (globalOptions.debug !== undefined) {
+            this.config.debug = globalOptions.debug;
+        }
     }
 
     private loadConfig(): void {
@@ -94,7 +102,7 @@ export class ConfigManager {
         this.saveCredentials();
     }
 
-    getToken(): string {
+    getToken(): string | undefined {
         // First check for API key (highest priority)
         const apiKey = this.getApiKey();
         if (apiKey) {
@@ -105,8 +113,6 @@ export class ConfigManager {
         if (this.config.token) {
             return this.config.token;
         }
-
-        throw new Error('No authentication token found. Please run "nile connect login" or provide an API key.');
     }
 
     removeToken(): void {
@@ -120,10 +126,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getApiKey(options?: GlobalOptions): string | undefined {
+    getApiKey(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.apiKey) {
-            return options.apiKey;
+        if (this.globalOptions.apiKey) {
+            return this.globalOptions.apiKey;
         }
 
         // 2. Config file
@@ -142,10 +148,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getWorkspace(options?: GlobalOptions): string | undefined {
+    getWorkspace(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.workspace) {
-            return options.workspace;
+        if (this.globalOptions.workspace) {
+            return this.globalOptions.workspace;
         }
 
         // 2. Config file
@@ -164,10 +170,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getDbHost(options?: GlobalOptions): string | undefined {
+    getDbHost(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.dbHost) {
-            return options.dbHost;
+        if (this.globalOptions.dbHost) {
+            return this.globalOptions.dbHost;
         }
 
         // 2. Config file
@@ -186,10 +192,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getGlobalHost(options?: GlobalOptions): string | undefined {
+    getGlobalHost(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.globalHost) {
-            return options.globalHost;
+        if (this.globalOptions.globalHost) {
+            return this.globalOptions.globalHost;
         }
 
         // 2. Config file
@@ -208,10 +214,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getDatabase(options?: GlobalOptions): string | undefined {
+    getDatabase(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.db) {
-            return options.db;
+        if (this.globalOptions.db) {
+            return this.globalOptions.db;
         }
 
         // 2. Config file
@@ -230,10 +236,10 @@ export class ConfigManager {
         return this.config;
     }
 
-    getAuthUrl(options?: GlobalOptions): string | undefined {
+    getAuthUrl(): string | undefined {
         // 1. Command line argument has highest priority
-        if (options?.authUrl) {
-            return options.authUrl;
+        if (this.globalOptions.authUrl) {
+            return this.globalOptions.authUrl;
         }
 
         // 2. Config file
@@ -248,16 +254,6 @@ export class ConfigManager {
 
     getAllConfig(): NileConfig {
         return { ...this.config };
-    }
-
-    // Initialize with command line options which take highest priority
-    initializeWithOptions(options: GlobalOptions): void {
-        if (options.authUrl) {
-            this.config.authUrl = options.authUrl;
-        }
-        if (options.debug !== undefined) {
-            this.config.debug = options.debug;
-        }
     }
 
     getDebug(): boolean {

@@ -25,9 +25,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -37,8 +36,8 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
         const databases = await api.listDatabases(workspaceSlug);
@@ -91,9 +90,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async (databaseName) => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -103,14 +101,14 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
 
         // If no database name provided, try to get from config
         if (!databaseName) {
-          databaseName = configManager.getDatabase(options);
+          databaseName = configManager.getDatabase();
           if (!databaseName) {
             throw new Error('No database specified. Use one of:\n' +
               '1. --db flag\n' +
@@ -150,9 +148,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async (cmdOptions) => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -162,8 +159,8 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
 
@@ -198,9 +195,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async (databaseName, cmdOptions) => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -210,14 +206,14 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
 
         // If no database name provided, try to get from config
         if (!databaseName) {
-          databaseName = configManager.getDatabase(options);
+          databaseName = configManager.getDatabase();
           if (!databaseName) {
             throw new Error('No database specified. Use one of:\n' +
               '1. --db flag\n' +
@@ -258,9 +254,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -270,8 +265,8 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
         const regions = await api.listRegions(workspaceSlug);
@@ -307,9 +302,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async (cmdOptions) => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -320,7 +314,7 @@ ${getGlobalOptionsHelp()}`);
         // Get database name from command option or config
         let databaseName = cmdOptions.name;
         if (!databaseName) {
-          databaseName = configManager.getDatabase(options);
+          databaseName = configManager.getDatabase();
           if (!databaseName) {
             throw new Error('No database specified. Use one of:\n' +
               '1. --db flag\n' +
@@ -331,8 +325,8 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
 
@@ -378,9 +372,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async (cmdOptions) => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
@@ -391,7 +384,7 @@ ${getGlobalOptionsHelp()}`);
         // Get database name from command option or config
         let databaseName = cmdOptions.name;
         if (!databaseName) {
-          databaseName = configManager.getDatabase(options);
+          databaseName = configManager.getDatabase();
           if (!databaseName) {
             throw new Error('No database specified. Use one of:\n' +
               '1. --db flag\n' +
@@ -402,8 +395,8 @@ ${getGlobalOptionsHelp()}`);
 
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
 

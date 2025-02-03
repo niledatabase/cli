@@ -24,8 +24,7 @@ ${getGlobalOptionsHelp()}`);
     .action(async (cmdOptions) => {
       try {
         const globalOptions = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(globalOptions);
+        const configManager = new ConfigManager(globalOptions);
 
         // First try to get token from existing methods
         const existingToken = await configManager.getToken();
@@ -60,8 +59,7 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const globalOptions = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(globalOptions);
+        const configManager = new ConfigManager(globalOptions);
         const token = await configManager.getToken();
         if (token) {
           if (globalOptions.apiKey) {
@@ -84,7 +82,8 @@ ${getGlobalOptionsHelp()}`);
     .description('Clear stored credentials')
     .action(async () => {
       try {
-        const configManager = new ConfigManager();
+        const globalOptions = getOptions();
+        const configManager = new ConfigManager(globalOptions);
         configManager.removeToken();
         console.log(theme.success('Successfully logged out'));
       } catch (error) {

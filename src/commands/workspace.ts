@@ -31,12 +31,11 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        configManager.initializeWithOptions(options);
+        const configManager = new ConfigManager(options);
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
         const workspaces = await api.listWorkspaces();
@@ -93,8 +92,8 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const options = getOptions();
-        const configManager = new ConfigManager();
-        const workspaceSlug = configManager.getWorkspace(options);
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
         
         if (!workspaceSlug) {
           console.log(theme.warning('No workspace selected'));
@@ -105,8 +104,8 @@ ${getGlobalOptionsHelp()}`);
         // Get workspace details from API
         const api = new NileAPI({
           token: configManager.getToken(),
-          dbHost: configManager.getDbHost(options),
-          controlPlaneUrl: configManager.getGlobalHost(options),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
         const workspace = await api.getWorkspace(workspaceSlug);

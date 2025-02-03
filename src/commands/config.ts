@@ -20,7 +20,7 @@ export function configCommand(): Command {
                 console.log('Debug - Global options:', globalOpts);
             }
             
-            const configManager = new ConfigManager();
+            const configManager = new ConfigManager(globalOpts);
             let configChanged = false;
             
             // Handle each config option
@@ -85,8 +85,9 @@ export function configCommand(): Command {
     command
         .command('reset')
         .description('Reset configuration to defaults')
-        .action(() => {
-            const configManager = new ConfigManager();
+        .action((options, cmd) => {
+            const globalOpts = getGlobalOptions(cmd.parent!);
+            const configManager = new ConfigManager(globalOpts);
             configManager.resetConfig();
             console.log('Configuration has been reset to defaults.');
         });
@@ -106,93 +107,3 @@ Examples:
 
     return command;
 }
-
-// Helper function to get API key with priority order
-export function getApiKey(cmdApiKey?: string): string | undefined {
-    // 1. Command line argument has highest priority
-    if (cmdApiKey) {
-        return cmdApiKey;
-    }
-
-    // 2. Config file
-    const configManager = new ConfigManager();
-    const configApiKey = configManager.getApiKey();
-    if (configApiKey) {
-        return configApiKey;
-    }
-
-    // 3. Environment variable
-    return process.env.NILE_API_KEY;
-}
-
-// Helper function to get workspace with priority order
-export function getWorkspace(cmdWorkspace?: string): string | undefined {
-    // 1. Command line argument has highest priority
-    if (cmdWorkspace) {
-        return cmdWorkspace;
-    }
-
-    // 2. Config file
-    const configManager = new ConfigManager();
-    const configWorkspace = configManager.getWorkspace();
-    if (configWorkspace) {
-        return configWorkspace;
-    }
-
-    // 3. Environment variable
-    return process.env.NILE_WORKSPACE;
-}
-
-// Helper function to get database with priority order
-export function getDatabase(cmdDb?: string): string | undefined {
-    // 1. Command line argument has highest priority
-    if (cmdDb) {
-        return cmdDb;
-    }
-
-    // 2. Config file
-    const configManager = new ConfigManager();
-    const configDb = configManager.getDatabase();
-    if (configDb) {
-        return configDb;
-    }
-
-    // 3. Environment variable
-    return process.env.NILE_DB;
-}
-
-// Helper function to get database host with priority order
-export function getDbHost(cmdDbHost?: string): string | undefined {
-    // 1. Command line argument has highest priority
-    if (cmdDbHost) {
-        return cmdDbHost;
-    }
-
-    // 2. Config file
-    const configManager = new ConfigManager();
-    const configDbHost = configManager.getDbHost();
-    if (configDbHost) {
-        return configDbHost;
-    }
-
-    // 3. Environment variable
-    return process.env.NILE_DB_HOST || 'db.thenile.dev';
-}
-
-// Helper function to get global host with priority order
-export function getGlobalHost(cmdGlobalHost?: string): string | undefined {
-    // 1. Command line argument has highest priority
-    if (cmdGlobalHost) {
-        return cmdGlobalHost;
-    }
-
-    // 2. Config file
-    const configManager = new ConfigManager();
-    const configGlobalHost = configManager.getGlobalHost();
-    if (configGlobalHost) {
-        return configGlobalHost;
-    }
-
-    // 3. Environment variable
-    return process.env.NILE_GLOBAL_HOST || 'global.thenile.dev';
-} 

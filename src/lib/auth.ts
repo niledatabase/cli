@@ -54,7 +54,7 @@ export class Auth {
   }
 
   private static getTokenUrl(configManager: ConfigManager): string {
-    const domain = configManager.getAuthUrl() || 'console.thenile.dev';
+    const domain = configManager.getGlobalHost();
     return `https://${domain}/oauth2/token`;
   }
 
@@ -62,6 +62,7 @@ export class Auth {
     configManager: ConfigManager,
     clientId: string = Auth.DEFAULT_CLIENT_ID
   ): Promise<string> {
+    const options = configManager.getAllConfig();
     if (configManager.getDebug()) {
       console.log('Debug - Starting auth with config:', {
         clientId: Auth.DEFAULT_CLIENT_ID,
@@ -88,17 +89,21 @@ export class Auth {
       }
       
       const server = http.createServer(async (req, res) => {
-        if (req.url === '/favicon.ico') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-
         if (configManager.getDebug()) {
           console.log('Debug - Received callback request:', req.url);
         }
 
+        // Immediately return for favicon requests
+        if (req.url === '/favicon.ico') {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
+
+        // Only process /callback path
         if (!req.url?.includes('/callback')) {
+          res.writeHead(404);
+          res.end('Not found');
           return;
         }
 
@@ -108,20 +113,24 @@ export class Auth {
         const error = url.searchParams.get('error');
         const errorDescription = url.searchParams.get('error_description');
 
+        // Close server and respond with error
         const closeServerAndReject = (status: number, message: string, error?: Error) => {
           res.writeHead(status, { 'Content-Type': 'text/html' });
           res.end(message);
-          server.close();
-          if (error) {
-            reject(error);
-          }
+          server.close(() => {
+            if (error) {
+              reject(error);
+            }
+          });
         };
 
+        // Handle authentication errors
         if (error) {
           closeServerAndReject(400, `Authentication failed: ${errorDescription || error}`, new Error(errorDescription || error));
           return;
         }
 
+        // Validate state parameter
         if (returnedState !== state) {
           if (configManager.getDebug()) {
             console.log('Debug - State mismatch:', {
@@ -133,6 +142,7 @@ export class Auth {
           return;
         }
 
+        // Ensure we have an authorization code
         if (!code) {
           if (configManager.getDebug()) {
             console.log('Debug - No code received in callback');
@@ -141,6 +151,7 @@ export class Auth {
           return;
         }
 
+        // Send success response immediately
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end('Authentication successful! You can close this window.');
 
@@ -148,6 +159,9 @@ export class Auth {
           if (configManager.getDebug()) {
             console.log('Debug - Exchanging code for token...');
           }
+
+          // Close server before token exchange to prevent additional requests
+          server.close();
 
           const tokenResponse = await axios.post<TokenResponse>(
             this.getTokenUrl(configManager),
@@ -169,7 +183,6 @@ export class Auth {
             console.log('Debug - Token exchange successful');
           }
 
-          server.close();
           resolve(tokenResponse.data.access_token);
         } catch (error) {
           if (configManager.getDebug()) {
@@ -178,7 +191,6 @@ export class Auth {
               console.log('Debug - Error response:', error.response.data);
             }
           }
-          server.close();
           if (axios.isAxiosError(error) && error.response) {
             reject(new Error(`Token exchange failed: ${error.response.data.error_description || error.response.data.error || error.message}`));
           } else {
