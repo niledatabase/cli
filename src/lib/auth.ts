@@ -3,10 +3,10 @@ import open from 'open';
 import axios from 'axios';
 import crypto from 'crypto';
 import { TokenResponse } from './types';
+import { GlobalOptions } from './globalOptions';
+import { ConfigManager } from './config';
 
 export class Auth {
-  private static AUTH_URL = 'https://console.thenile.dev/authorize';
-  private static TOKEN_URL = 'https://global.thenile.dev/oauth2/token';
   private static DEFAULT_CLIENT_ID = 'nilecli';
 
   private static generateCodeVerifier(): string {
@@ -29,70 +29,180 @@ export class Auth {
       .replace(/=/g, '');
   }
 
-  static async getAuthorizationToken(clientId: string = Auth.DEFAULT_CLIENT_ID): Promise<string> {
+  private static generateState(): string {
+    return crypto.randomBytes(4).toString('hex');
+  }
+
+  private static async findAvailablePort(): Promise<number> {
     return new Promise((resolve, reject) => {
+      const server = http.createServer();
+      server.listen(0, () => {
+        const address = server.address();
+        if (address && typeof address === 'object') {
+          const port = address.port;
+          server.close(() => resolve(port));
+        } else {
+          server.close(() => reject(new Error('Could not find available port')));
+        }
+      });
+    });
+  }
+
+  private static getAuthUrl(configManager: ConfigManager): string {
+    const authDomain = configManager.getAuthUrl() || 'console.thenile.dev';
+    return `https://${authDomain}/authorize`;
+  }
+
+  private static getTokenUrl(configManager: ConfigManager): string {
+    const domain = configManager.getAuthUrl() || 'console.thenile.dev';
+    return `https://${domain}/oauth2/token`;
+  }
+
+  static async getAuthorizationToken(
+    configManager: ConfigManager,
+    clientId: string = Auth.DEFAULT_CLIENT_ID
+  ): Promise<string> {
+    if (configManager.getDebug()) {
+      console.log('Debug - Starting auth with config:', {
+        clientId: Auth.DEFAULT_CLIENT_ID,
+        authUrl: configManager.getAuthUrl(),
+        tokenUrl: this.getTokenUrl(configManager),
+        debug: configManager.getDebug()
+      });
+    }
+
+    return new Promise(async (resolve, reject) => {
       const codeVerifier = this.generateCodeVerifier();
+      const state = this.generateState();
+      const port = await this.findAvailablePort();
+
+      if (configManager.getDebug()) {
+        console.log('Debug - Auth parameters:', {
+          clientId: Auth.DEFAULT_CLIENT_ID,
+          authUrl: this.getAuthUrl(configManager),
+          tokenUrl: this.getTokenUrl(configManager),
+          port,
+          codeVerifier: codeVerifier.substring(0, 5) + '...',
+          state
+        });
+      }
       
       const server = http.createServer(async (req, res) => {
-        const url = new URL(req.url!, `http://${req.headers.host}`);
-        const code = url.searchParams.get('code');
-        const error = url.searchParams.get('error');
-        const errorDescription = url.searchParams.get('error_description');
-
-        if (error) {
-          res.writeHead(400, { 'Content-Type': 'text/html' });
-          res.end(`Authentication failed: ${errorDescription || error}`);
-          server.close();
-          reject(new Error(errorDescription || error));
+        if (req.url === '/favicon.ico') {
+          res.writeHead(404);
+          res.end();
           return;
         }
 
-        if (code) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('Authentication successful! You can close this window.');
+        if (configManager.getDebug()) {
+          console.log('Debug - Received callback request:', req.url);
+        }
+
+        if (!req.url?.includes('/callback')) {
+          return;
+        }
+
+        const url = new URL(req.url!, `http://${req.headers.host}`);
+        const code = url.searchParams.get('code');
+        const returnedState = url.searchParams.get('state');
+        const error = url.searchParams.get('error');
+        const errorDescription = url.searchParams.get('error_description');
+
+        const closeServerAndReject = (status: number, message: string, error?: Error) => {
+          res.writeHead(status, { 'Content-Type': 'text/html' });
+          res.end(message);
           server.close();
+          if (error) {
+            reject(error);
+          }
+        };
 
-          try {
-            const tokenResponse = await axios.post<TokenResponse>(
-              Auth.TOKEN_URL,
-              new URLSearchParams({
-                grant_type: 'authorization_code',
-                code,
-                client_id: clientId,
-                code_verifier: codeVerifier,
-                redirect_uri: 'http://localhost:8080/callback',
-              }).toString(),
-              {
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded'
-                }
+        if (error) {
+          closeServerAndReject(400, `Authentication failed: ${errorDescription || error}`, new Error(errorDescription || error));
+          return;
+        }
+
+        if (returnedState !== state) {
+          if (configManager.getDebug()) {
+            console.log('Debug - State mismatch:', {
+              expected: state,
+              received: returnedState
+            });
+          }
+          closeServerAndReject(400, 'Authentication failed: Invalid state parameter', new Error('Invalid state parameter'));
+          return;
+        }
+
+        if (!code) {
+          if (configManager.getDebug()) {
+            console.log('Debug - No code received in callback');
+          }
+          closeServerAndReject(400, 'Authentication failed: No authorization code received', new Error('No authorization code received'));
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('Authentication successful! You can close this window.');
+
+        try {
+          if (configManager.getDebug()) {
+            console.log('Debug - Exchanging code for token...');
+          }
+
+          const tokenResponse = await axios.post<TokenResponse>(
+            this.getTokenUrl(configManager),
+            new URLSearchParams({
+              grant_type: 'authorization_code',
+              code,
+              client_id: Auth.DEFAULT_CLIENT_ID,
+              code_verifier: codeVerifier,
+              redirect_uri: `http://localhost:${port}/callback`,
+            }).toString(),
+            {
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
               }
-            );
-
-            resolve(tokenResponse.data.access_token);
-          } catch (error) {
-            if (axios.isAxiosError(error) && error.response) {
-              reject(new Error(`Token exchange failed: ${error.response.data.error || error.message}`));
-            } else {
-              reject(error);
             }
+          );
+
+          if (configManager.getDebug()) {
+            console.log('Debug - Token exchange successful');
+          }
+
+          server.close();
+          resolve(tokenResponse.data.access_token);
+        } catch (error) {
+          if (configManager.getDebug()) {
+            console.log('Debug - Token exchange failed:', error);
+            if (axios.isAxiosError(error) && error.response) {
+              console.log('Debug - Error response:', error.response.data);
+            }
+          }
+          server.close();
+          if (axios.isAxiosError(error) && error.response) {
+            reject(new Error(`Token exchange failed: ${error.response.data.error_description || error.response.data.error || error.message}`));
+          } else {
+            reject(error);
           }
         }
       });
 
-      server.listen(8080, async () => {
+      server.listen(port, async () => {
         try {
           const codeChallenge = await this.generateCodeChallenge(codeVerifier);
           const params = new URLSearchParams({
-            client_id: clientId,
+            client_id: Auth.DEFAULT_CLIENT_ID,
+            state,
             response_type: 'code',
+            redirect_uri: `http://localhost:${port}/callback`,
             code_challenge: codeChallenge,
-            code_challenge_method: 'S256',
-            redirect_uri: 'http://localhost:8080/callback',
-            scope: 'databases workspaces query'
+            code_challenge_method: 'S256'
           });
 
-          const authUrl = `${Auth.AUTH_URL}?${params.toString()}`;
+          const authUrl = `${this.getAuthUrl(configManager)}?${params.toString()}`;
+          if (configManager.getDebug()) {
+            console.log('Debug - Full auth URL:', authUrl);
+          }
           console.log('Opening authorization URL:', authUrl);
           await open(authUrl);
         } catch (error) {
@@ -103,8 +213,8 @@ export class Auth {
 
       setTimeout(() => {
         server.close();
-        reject(new Error('Authentication timed out after 5 minutes'));
-      }, 300000);
+        reject(new Error('Authentication timed out after 2 minutes'));
+      }, 120000);
     });
   }
 } 

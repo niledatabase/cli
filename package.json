@@ -18,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "@niledatabase/react": "^3.0.0-alpha.40",
+    "@theniledev/js": "^1.0.0-alpha.194",
     "@types/pg": "^8.11.10",
     "axios": "^1.6.0",
     "chalk": "^4.1.2",

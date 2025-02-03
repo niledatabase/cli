@@ -1,10 +1,8 @@
 import { Command } from 'commander';
 import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
-import { getAuthToken } from '../lib/authUtils';
 import { theme, table, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
-import chalk from 'chalk';
 import axios from 'axios';
 
 interface Workspace {
@@ -33,12 +31,13 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const options = getOptions();
-        const token = await getAuthToken(options);
+        const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
         const workspaces = await api.listWorkspaces();
 
@@ -104,12 +103,11 @@ ${getGlobalOptionsHelp()}`);
         }
 
         // Get workspace details from API
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
         const workspace = await api.getWorkspace(workspaceSlug);
 

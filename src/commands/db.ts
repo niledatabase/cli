@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
-import { getAuthToken } from '../lib/authUtils';
 import { theme, table, formatStatus, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 
@@ -27,6 +26,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -35,12 +35,11 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
         const databases = await api.listDatabases(workspaceSlug);
 
@@ -93,6 +92,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -101,12 +101,11 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
 
         // If no database name provided, try to get from config
@@ -152,6 +151,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -160,12 +160,11 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
 
         // If region not provided, list available regions
@@ -200,6 +199,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -208,12 +208,11 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
 
         // If no database name provided, try to get from config
@@ -260,6 +259,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -268,12 +268,11 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
         const regions = await api.listRegions(workspaceSlug);
 
@@ -309,6 +308,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -329,12 +329,11 @@ ${getGlobalOptionsHelp()}`);
           }
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
 
         // Get database connection details
@@ -380,6 +379,7 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager();
+        configManager.initializeWithOptions(options);
         const workspaceSlug = configManager.getWorkspace(options);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
@@ -400,12 +400,11 @@ ${getGlobalOptionsHelp()}`);
           }
         }
 
-        const token = await getAuthToken(options);
         const api = new NileAPI({
-          token,
-          debug: options.debug,
-          controlPlaneUrl: options.globalHost,
-          dbHost: options.dbHost
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(options),
+          controlPlaneUrl: configManager.getGlobalHost(options),
+          debug: options.debug
         });
 
         // Get database connection details

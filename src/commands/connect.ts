@@ -1,9 +1,8 @@
 import { Command } from 'commander';
-import { Config } from '../lib/config';
 import { Auth } from '../lib/auth';
-import { getAuthToken } from '../lib/authUtils';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
+import { ConfigManager } from '../lib/config';
 
 type GetOptions = () => GlobalOptions;
 
@@ -21,12 +20,15 @@ ${getGlobalOptionsHelp()}`);
   connect
     .command('login')
     .description('Connect to Nile using browser-based authentication')
-    .option('--client-id <id>', 'OAuth client ID', 'nile-cli')
-    .action(async (options) => {
+    .option('--client-id <id>', 'OAuth client ID', 'nilecli')
+    .action(async (cmdOptions) => {
       try {
-        // First try to get token from existing methods
         const globalOptions = getOptions();
-        const existingToken = await getAuthToken(globalOptions);
+        const configManager = new ConfigManager();
+        configManager.initializeWithOptions(globalOptions);
+
+        // First try to get token from existing methods
+        const existingToken = await configManager.getToken();
         if (existingToken) {
           console.log(theme.success('Already connected to Nile!'));
           return;
@@ -34,9 +36,13 @@ ${getGlobalOptionsHelp()}`);
 
         // If no existing token, start browser-based auth
         console.log(theme.info('Starting browser-based authentication...'));
-        const token = await Auth.getAuthorizationToken(options.clientId);
+        if (configManager.getDebug()) {
+          console.log('Debug - Auth URL:', configManager.getAuthUrl());
+        }
+        
+        const token = await Auth.getAuthorizationToken(configManager, cmdOptions.clientId);
         if (token) {
-          await Config.saveToken(token);
+          configManager.setToken(token);
           console.log(theme.success('\nSuccessfully connected to Nile!'));
         } else {
           console.error(theme.error('Failed to connect to Nile'));
@@ -54,7 +60,9 @@ ${getGlobalOptionsHelp()}`);
     .action(async () => {
       try {
         const globalOptions = getOptions();
-        const token = await getAuthToken(globalOptions);
+        const configManager = new ConfigManager();
+        configManager.initializeWithOptions(globalOptions);
+        const token = await configManager.getToken();
         if (token) {
           if (globalOptions.apiKey) {
             console.log(theme.success('Connected to Nile using API key'));
@@ -76,7 +84,8 @@ ${getGlobalOptionsHelp()}`);
     .description('Clear stored credentials')
     .action(async () => {
       try {
-        await Config.removeToken();
+        const configManager = new ConfigManager();
+        configManager.removeToken();
         console.log(theme.success('Successfully logged out'));
       } catch (error) {
         console.error(theme.error('Failed to logout:'), error);

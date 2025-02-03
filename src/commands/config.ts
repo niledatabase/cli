@@ -56,6 +56,14 @@ export function configCommand(): Command {
                 configChanged = true;
             }
 
+            if (globalOpts.authUrl) {
+                if (debug) {
+                    console.log('Debug - Setting auth URL:', globalOpts.authUrl);
+                }
+                configManager.setAuthUrl(globalOpts.authUrl);
+                configChanged = true;
+            }
+
             if (globalOpts.db) {
                 if (debug) {
                     console.log('Debug - Setting database:', globalOpts.db);
@@ -74,6 +82,15 @@ export function configCommand(): Command {
             console.log(JSON.stringify(currentConfig, null, 2));
         });
 
+    command
+        .command('reset')
+        .description('Reset configuration to defaults')
+        .action(() => {
+            const configManager = new ConfigManager();
+            configManager.resetConfig();
+            console.log('Configuration has been reset to defaults.');
+        });
+
     command.addHelpText('after', `
 Examples:
   $ nile config                                    Show current configuration
@@ -82,7 +99,9 @@ Examples:
   $ nile config --db <name>                       Set default database
   $ nile config --db-host db.example.com          Set database host
   $ nile config --global-host global.example.com  Set global host
+  $ nile config --auth-url auth.example.com       Set authentication URL
   $ nile config --api-key <key> --workspace dev   Set multiple configurations
+  $ nile config reset                             Reset configuration to defaults
     `);
 
     return command;

@@ -8,6 +8,7 @@ export interface GlobalOptions {
   debug?: boolean;
   dbHost?: string;
   globalHost?: string;
+  authUrl?: string;
   workspace?: string;
   db?: string;
 }
@@ -28,6 +29,7 @@ export function addGlobalOptions(program: Command): Command {
     .option('--debug', 'Enable debug output')
     .option('--db-host <host>', 'Override database host domain (default: db.thenile.dev)')
     .option('--global-host <host>', 'Override global control plane host (default: global.thenile.dev)')
+    .option('--auth-url <url>', 'Override authentication URL (default: console.thenile.dev)')
     .option('--workspace <n>', 'Workspace name (overrides selected workspace)')
     .option('--db <n>', 'Database name (overrides selected database)');
 }
@@ -42,6 +44,7 @@ export function getGlobalOptions(cmd: Command): GlobalOptions {
     debug: opts.debug,
     dbHost: opts.dbHost,
     globalHost: opts.globalHost,
+    authUrl: opts.authUrl,
     workspace: opts.workspace,
     db: opts.db
   };
@@ -52,8 +55,9 @@ export function getGlobalOptionsHelp(): string {
   --api-key <key>        API key for authentication
   --global-host <host>   Override global control plane host (default: global.thenile.dev)
   --db-host <host>       Override database host domain (default: db.thenile.dev)
-  --workspace <name>     Workspace name (overrides selected workspace)
-  --db <name>           Database name (overrides selected database)
+  --auth-url <url>       Override authentication URL (default: console.thenile.dev)
+  --workspace <n>        Workspace name (overrides selected workspace)
+  --db <n>              Database name (overrides selected database)
   --format <type>        Output format: human (default), json, csv
   --color [boolean]      Enable/disable colored output
   --debug               Enable debug output`;

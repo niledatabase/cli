@@ -4,7 +4,6 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, table, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
-import { getAuthToken } from '../lib/authUtils';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
     const configManager = new ConfigManager();
@@ -100,14 +99,16 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          const configManager = new ConfigManager();
+          configManager.initializeWithOptions(options);
+          const token = await configManager.getToken();
           const api = new NileAPI({
-            token: await getAuthToken(options),
-            debug: options.debug,
-            controlPlaneUrl: options.globalHost,
-            dbHost: options.dbHost
+            token: configManager.getToken(),
+            dbHost: configManager.getDbHost(options),
+            controlPlaneUrl: configManager.getGlobalHost(options),
+            debug: options.debug
           });
-
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
           
           console.log(theme.dim('\nFetching tenants...'));
@@ -148,14 +149,14 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          const configManager = new ConfigManager();
+          configManager.initializeWithOptions(options);
           const api = new NileAPI({
-            token: await getAuthToken(options),
-            debug: options.debug,
-            controlPlaneUrl: options.globalHost,
-            dbHost: options.dbHost
+            token: configManager.getToken(),
+            dbHost: configManager.getDbHost(options),
+            controlPlaneUrl: configManager.getGlobalHost(options),
           });
-
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
           
           console.log(theme.dim(`\nCreating tenant...with name: ${cmdOptions.name} and id: ${cmdOptions.id}`));
@@ -198,13 +199,15 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          const configManager = new ConfigManager();
+          configManager.initializeWithOptions(options);
+          const token = await configManager.getToken();
           const api = new NileAPI({
-            token: await getAuthToken(options),
-            debug: options.debug,
-            controlPlaneUrl: options.globalHost,
-            dbHost: options.dbHost
+            token,
+            dbHost: configManager.getDbHost(options),
+            controlPlaneUrl: configManager.getGlobalHost(options),
           });
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
 
           // First verify the tenant exists
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
@@ -227,10 +230,6 @@ Examples:
             console.error(theme.error('\nFailed to delete tenant:'), error);
           }
           process.exit(1);
-        } finally {
-          if (client) {
-            await client.end();
-          }
         }
       });
 
@@ -247,13 +246,14 @@ Examples:
         let client: Client | undefined;
         try {
           const options = getGlobalOptions();
-          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          const configManager = new ConfigManager();
+          configManager.initializeWithOptions(options);
           const api = new NileAPI({
-            token: await getAuthToken(options),
-            debug: options.debug,
-            controlPlaneUrl: options.globalHost,
-            dbHost: options.dbHost
+            token: configManager.getToken(),
+            dbHost: configManager.getDbHost(options),
+            controlPlaneUrl: configManager.getGlobalHost(options),
           });
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
 
           console.log(theme.dim('\nUpdating tenant...'));
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);

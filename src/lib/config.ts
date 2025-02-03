@@ -1,125 +1,32 @@
 import * as fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { Workspace } from './types';
 import { GlobalOptions } from './globalOptions';
 
-export interface Database {
-  name: string;
-}
-
-export class Config {
-  private static CONFIG_DIR = path.join(os.homedir(), '.nile');
-  private static WORKSPACE_FILE = path.join(Config.CONFIG_DIR, 'workspace.json');
-  private static CREDENTIALS_FILE = path.join(Config.CONFIG_DIR, 'credentials.json');
-  private static CONFIG_FILE = path.join(Config.CONFIG_DIR, 'config.json');
-
-  static async init(): Promise<void> {
-    await fs.promises.mkdir(Config.CONFIG_DIR, { recursive: true });
-  }
-
-  private static async read(): Promise<any> {
-    try {
-      await Config.init();
-      const data = await fs.promises.readFile(Config.CONFIG_FILE, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      // If file doesn't exist, return empty object
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return {};
-      }
-      throw error;
-    }
-  }
-
-  private static async write(config: any): Promise<void> {
-    await Config.init();
-    await fs.promises.writeFile(Config.CONFIG_FILE, JSON.stringify(config, null, 2));
-  }
-
-  static async getWorkspace(): Promise<Workspace | null> {
-    try {
-      const data = await fs.promises.readFile(Config.WORKSPACE_FILE, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  static async setWorkspace(workspace: Workspace): Promise<void> {
-    await Config.init();
-    await fs.promises.writeFile(Config.WORKSPACE_FILE, JSON.stringify(workspace, null, 2));
-  }
-
-  // Alias for backward compatibility
-  static async saveWorkspace(workspace: Workspace): Promise<void> {
-    return Config.setWorkspace(workspace);
-  }
-
-  static async getCredentials(): Promise<{ token: string } | null> {
-    try {
-      const data = await fs.promises.readFile(Config.CREDENTIALS_FILE, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  static async setCredentials(credentials: { token: string }): Promise<void> {
-    await Config.init();
-    await fs.promises.writeFile(Config.CREDENTIALS_FILE, JSON.stringify(credentials, null, 2));
-  }
-
-  // Token-related methods for backward compatibility
-  static async saveToken(token: string): Promise<void> {
-    return Config.setCredentials({ token });
-  }
-
-  static async removeToken(): Promise<void> {
-    return Config.clearCredentials();
-  }
-
-  static async clearCredentials(): Promise<void> {
-    try {
-      await fs.promises.unlink(Config.CREDENTIALS_FILE);
-    } catch (error) {
-      // Ignore error if file doesn't exist
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-    }
-  }
-
-  static async setDatabase(database: Database): Promise<void> {
-    const config = await this.read();
-    config.database = database;
-    await this.write(config);
-  }
-
-  static async getDatabase(): Promise<Database | undefined> {
-    const config = await this.read();
-    return config.database;
-  }
-}
-
-interface NileConfig {
+export interface NileConfig {
     apiKey?: string;
     workspace?: string;
     dbHost?: string;
     globalHost?: string;
+    authUrl?: string;
     database?: string;
+    debug?: boolean;
+    token?: string;
 }
 
 export class ConfigManager {
     private configPath: string;
-    private config: NileConfig;
+    private credentialsPath: string;
+    private config: NileConfig = {};
 
     constructor() {
-        this.configPath = path.join(os.homedir(), '.nile', 'config.json');
-        this.config = this.loadConfig();
+        const configDir = path.join(os.homedir(), '.nile');
+        this.configPath = path.join(configDir, 'config.json');
+        this.credentialsPath = path.join(configDir, 'credentials.json');
+        this.loadConfig();
     }
 
-    private loadConfig(): NileConfig {
+    private loadConfig(): void {
         try {
             // Ensure .nile directory exists
             const configDir = path.dirname(this.configPath);
@@ -127,15 +34,22 @@ export class ConfigManager {
                 fs.mkdirSync(configDir, { recursive: true });
             }
 
-            // Load config if it exists, otherwise return empty config
+            // Load config if it exists
             if (fs.existsSync(this.configPath)) {
                 const configContent = fs.readFileSync(this.configPath, 'utf-8');
-                return JSON.parse(configContent);
+                this.config = JSON.parse(configContent);
             }
-            return {};
+
+            // Load credentials if they exist
+            if (fs.existsSync(this.credentialsPath)) {
+                const credentialsContent = fs.readFileSync(this.credentialsPath, 'utf-8');
+                const credentials = JSON.parse(credentialsContent);
+                if (credentials.token) {
+                    this.config.token = credentials.token;
+                }
+            }
         } catch (error) {
             console.error('Error loading config:', error);
-            return {};
         }
     }
 
@@ -146,6 +60,58 @@ export class ConfigManager {
             console.error('Error saving config:', error);
             throw new Error('Failed to save config');
         }
+    }
+
+    private saveCredentials(): void {
+        try {
+            const configDir = path.dirname(this.credentialsPath);
+            if (!fs.existsSync(configDir)) {
+                fs.mkdirSync(configDir, { recursive: true });
+            }
+            if (this.config.token) {
+                fs.writeFileSync(this.credentialsPath, JSON.stringify({ token: this.config.token }, null, 2));
+            } else {
+                // If no token, remove the credentials file
+                if (fs.existsSync(this.credentialsPath)) {
+                    fs.unlinkSync(this.credentialsPath);
+                }
+            }
+        } catch (error) {
+            console.error('Error saving credentials:', error);
+            throw new Error('Failed to save credentials');
+        }
+    }
+
+    resetConfig(): void {
+        this.config = {};
+        this.saveConfig();
+        this.saveCredentials();
+    }
+
+    // Token management methods
+    setToken(token: string): void {
+        this.config.token = token;
+        this.saveCredentials();
+    }
+
+    getToken(): string {
+        // First check for API key (highest priority)
+        const apiKey = this.getApiKey();
+        if (apiKey) {
+            return apiKey;
+        }
+
+        // If no API key, check credentials file
+        if (this.config.token) {
+            return this.config.token;
+        }
+
+        throw new Error('No authentication token found. Please run "nile connect login" or provide an API key.');
+    }
+
+    removeToken(): void {
+        delete this.config.token;
+        this.saveCredentials();
     }
 
     setApiKey(apiKey: string): NileConfig {
@@ -258,7 +224,43 @@ export class ConfigManager {
         return process.env.NILE_DB;
     }
 
+    setAuthUrl(authUrl: string): NileConfig {
+        this.config.authUrl = authUrl;
+        this.saveConfig();
+        return this.config;
+    }
+
+    getAuthUrl(options?: GlobalOptions): string | undefined {
+        // 1. Command line argument has highest priority
+        if (options?.authUrl) {
+            return options.authUrl;
+        }
+
+        // 2. Config file
+        const configAuthUrl = this.config?.authUrl;
+        if (configAuthUrl) {
+            return configAuthUrl;
+        }
+
+        // 3. Environment variable
+        return process.env.NILE_AUTH_URL || 'console.thenile.dev';
+    }
+
     getAllConfig(): NileConfig {
         return { ...this.config };
+    }
+
+    // Initialize with command line options which take highest priority
+    initializeWithOptions(options: GlobalOptions): void {
+        if (options.authUrl) {
+            this.config.authUrl = options.authUrl;
+        }
+        if (options.debug !== undefined) {
+            this.config.debug = options.debug;
+        }
+    }
+
+    getDebug(): boolean {
+        return this.config.debug || false;
     }
 } 
