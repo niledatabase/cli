@@ -11,6 +11,9 @@ export interface NileConfig {
     authUrl?: string;
     database?: string;
     debug?: boolean;
+}
+
+interface Credentials {
     token?: string;
 }
 
@@ -19,6 +22,7 @@ export class ConfigManager {
     private configPath: string;
     private credentialsPath: string;
     private config: NileConfig = {};
+    private credentials: Credentials = {};
 
     constructor(globalOptions: GlobalOptions) {
         this.globalOptions = globalOptions;
@@ -51,10 +55,7 @@ export class ConfigManager {
             // Load credentials if they exist
             if (fs.existsSync(this.credentialsPath)) {
                 const credentialsContent = fs.readFileSync(this.credentialsPath, 'utf-8');
-                const credentials = JSON.parse(credentialsContent);
-                if (credentials.token) {
-                    this.config.token = credentials.token;
-                }
+                this.credentials = JSON.parse(credentialsContent);
             }
         } catch (error) {
             console.error('Error loading config:', error);
@@ -76,10 +77,10 @@ export class ConfigManager {
             if (!fs.existsSync(configDir)) {
                 fs.mkdirSync(configDir, { recursive: true });
             }
-            if (this.config.token) {
-                fs.writeFileSync(this.credentialsPath, JSON.stringify({ token: this.config.token }, null, 2));
+            if (Object.keys(this.credentials).length > 0) {
+                fs.writeFileSync(this.credentialsPath, JSON.stringify(this.credentials, null, 2));
             } else {
-                // If no token, remove the credentials file
+                // If no credentials, remove the credentials file
                 if (fs.existsSync(this.credentialsPath)) {
                     fs.unlinkSync(this.credentialsPath);
                 }
@@ -92,13 +93,14 @@ export class ConfigManager {
 
     resetConfig(): void {
         this.config = {};
+        this.credentials = {};
         this.saveConfig();
         this.saveCredentials();
     }
 
     // Token management methods
     setToken(token: string): void {
-        this.config.token = token;
+        this.credentials.token = token;
         this.saveCredentials();
     }
 
@@ -110,13 +112,11 @@ export class ConfigManager {
         }
 
         // If no API key, check credentials file
-        if (this.config.token) {
-            return this.config.token;
-        }
+        return this.credentials.token;
     }
 
     removeToken(): void {
-        delete this.config.token;
+        delete this.credentials.token;
         this.saveCredentials();
     }
 

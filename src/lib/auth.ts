@@ -151,17 +151,10 @@ export class Auth {
           return;
         }
 
-        // Send success response immediately
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('Authentication successful! You can close this window.');
-
         try {
           if (configManager.getDebug()) {
             console.log('Debug - Exchanging code for token...');
           }
-
-          // Close server before token exchange to prevent additional requests
-          server.close();
 
           const tokenResponse = await axios.post<TokenResponse>(
             this.getTokenUrl(configManager),
@@ -183,7 +176,15 @@ export class Auth {
             console.log('Debug - Token exchange successful');
           }
 
-          resolve(tokenResponse.data.access_token);
+          // Send success response and close server
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('Authentication successful! You can close this window.');
+          
+          // Close server and resolve with token
+          server.close(() => {
+            resolve(tokenResponse.data.access_token);
+          });
+
         } catch (error) {
           if (configManager.getDebug()) {
             console.log('Debug - Token exchange failed:', error);
@@ -191,14 +192,19 @@ export class Auth {
               console.log('Debug - Error response:', error.response.data);
             }
           }
-          if (axios.isAxiosError(error) && error.response) {
-            reject(new Error(`Token exchange failed: ${error.response.data.error_description || error.response.data.error || error.message}`));
-          } else {
-            reject(error);
-          }
+
+          // Send error response and close server
+          closeServerAndReject(400, 'Authentication failed during token exchange. Please try again.', 
+            axios.isAxiosError(error) && error.response 
+              ? new Error(`Token exchange failed: ${error.response.data.error_description || error.response.data.error || error.message}`)
+              : error as Error
+          );
         }
       });
 
+      // Set up server and timeout
+      let timeoutId: NodeJS.Timeout;
+      
       server.listen(port, async () => {
         try {
           const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -217,16 +223,24 @@ export class Auth {
           }
           console.log('Opening authorization URL:', authUrl);
           await open(authUrl);
+
+          // Set timeout after server starts
+          timeoutId = setTimeout(() => {
+            server.close();
+            reject(new Error('Authentication timed out after 2 minutes'));
+          }, 120000);
         } catch (error) {
           server.close();
           reject(error);
         }
       });
 
-      setTimeout(() => {
-        server.close();
-        reject(new Error('Authentication timed out after 2 minutes'));
-      }, 120000);
+      // Clean up on server close
+      server.on('close', () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
     });
   }
 } 
