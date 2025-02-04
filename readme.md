@@ -36,182 +36,61 @@ Command line interface for managing Nile databases. Easily create, manage, and m
 
 Now you can use the `nile` command from anywhere in your terminal.
 
-## Quick Start
+## Connecting to Nile
 
-1. **Authentication**
+There are three ways to connect to Nile:
 
-   You can authenticate using one of these methods:
+1. **Browser-based Authentication** (Recommended)
    ```bash
-   # Using API key directly
+   # Start the authentication flow
+   nile connect login
+   
+   # Check connection status
+   nile connect status
+   
+   # Logout when needed
+   nile connect logout
+   ```
+
+2. **Using API Key**
+   ```bash
+   # Use API key directly in commands
    nile --api-key YOUR_API_KEY db list
-
-   # Or login via browser
-   nile auth login
+   
+   # Or save it in configuration
+   nile config --api-key YOUR_API_KEY
    ```
 
-2. **Configure Workspace and Database**
+3. **Environment Variables**
    ```bash
-   # List available workspaces
-   nile workspace list
-
-   # Set default workspace
-   nile config --workspace demo
-
-   # Set default database
-   nile config --db mydb
-   ```
-
-3. **Manage Databases**
-   ```bash
-   # List all databases
-   nile db list
-
-   # List available regions
-   nile db regions
-
-   # Create a new database
-   nile db create --name mydb --region AWS_US_WEST_2
-
-   # Show database details
-   nile db show mydb
-
-   # Get database connection string
-   nile db connectionstring --name mydb --psql          # Get PostgreSQL connection string
-
-   # Delete a database
-   nile db delete mydb
-
-   # Connect to database using psql (requires PostgreSQL client tools)
-   nile db psql --name mydb
-   ```
-
-## Configuration
-
-The CLI supports multiple ways to configure settings, with the following priority order (highest to lowest):
-
-1. Command line flags
-   ```bash
-   nile --workspace demo --db mydb tenants list
-   ```
-
-2. Configuration file (via `nile config`)
-   ```bash
-   nile config --workspace demo --db mydb --api-key YOUR_API_KEY
-   ```
-
-3. Environment variables
-   ```bash
-   export NILE_WORKSPACE=demo
-   export NILE_DB=mydb
    export NILE_API_KEY=YOUR_API_KEY
    ```
 
-## Global Options
+## Configuration Management
 
-- `--api-key <key>`: API key for authentication
-- `--workspace <name>`: Workspace to use
-- `--db <name>`: Database to use
-- `-f, --format <type>`: Output format: human (default), json, or csv
-- `--color`: Enable colored output (default: true)
-- `--no-color`: Disable colored output
-- `--debug`: Enable debug output
-- `-h, --help`: Show help information
+The CLI supports multiple ways to configure settings, with the following priority (highest to lowest):
 
-## Commands
+1. Command line flags
+2. Configuration file (via `nile config`)
+3. Environment variables
 
-### Authentication
-```bash
-nile auth login    # Login using browser-based auth
-nile auth status   # Check authentication status
-nile auth logout   # Clear stored credentials
-```
+### Using the Config Command
 
-### Configuration
 ```bash
 # View current configuration
 nile config
 
-# Set configuration values
+# Set workspace and database
 nile config --workspace demo --db mydb
+
+# Set API key
 nile config --api-key YOUR_API_KEY
+
+# Reset configuration
+nile config reset
 ```
 
-### Workspaces
-```bash
-nile workspace list           # List available workspaces
-nile workspace show          # Show current workspace
-```
-
-### Databases
-```bash
-# List databases
-nile db list
-
-# List available regions
-nile db regions
-
-# Create database
-nile db create --name mydb --region AWS_US_WEST_2
-
-# Show database details
-nile db show mydb
-
-# Get database connection string
-nile db connectionstring --name mydb --psql          # Get PostgreSQL connection string
-
-# Delete a database
-nile db delete mydb
-
-# Connect to database using psql (requires PostgreSQL client tools)
-nile db psql --name mydb
-```
-
-### Tenants
-```bash
-# List all tenants
-nile tenants list
-
-# Create a new tenant
-nile tenants create --name "My Tenant"              # Create with auto-generated ID
-nile tenants create --name "My Tenant" --id custom-id   # Create with custom ID
-
-# Update a tenant
-nile tenants update --id tenant-123 --new_name "New Name"   # Update tenant name
-
-# Delete a tenant
-nile tenants delete --id tenant-123                 # Delete by ID
-
-# List tenants in specific workspace/database
-nile tenants list --workspace myworkspace --db mydb
-```
-
-## Output Formats
-
-The CLI supports multiple output formats for easy integration with other tools:
-
-1. **Human-readable** (default):
-   ```bash
-   nile db list
-   ```
-
-2. **JSON** (good for scripting):
-   ```bash
-   nile --format json db list
-   ```
-
-3. **CSV** (good for spreadsheets):
-   ```bash
-   nile --format csv db list
-   ```
-
-## Debugging
-
-For troubleshooting, use the `--debug` flag to see detailed API interactions:
-```bash
-nile --debug db list
-```
-
-## Environment Variables
+### Environment Variables
 
 - `NILE_API_KEY`: API key for authentication
 - `NILE_WORKSPACE`: Default workspace
@@ -219,58 +98,141 @@ nile --debug db list
 - `NILE_DB_HOST`: Custom database host (optional)
 - `NILE_GLOBAL_HOST`: Custom global host (optional)
 
-## Common Use Cases
+## Workspace Management
 
-1. **Setting Up Your Environment**
+Workspaces help organize your databases and resources. Here's how to manage them:
+
+```bash
+# List all available workspaces
+nile workspace list
+
+# Show current workspace details
+nile workspace show
+
+# Set default workspace
+nile config --workspace demo
+```
+
+## Database Management
+
+### Listing and Creating Databases
+
+```bash
+# List all databases in current workspace
+nile db list
+
+# Show specific database details
+nile db show mydb
+
+# List available regions
+nile db create --region  # Lists regions if no region specified
+
+# Create a new database
+nile db create --name mydb --region AWS_US_WEST_2
+```
+
+### Connecting to Databases
+
+```bash
+# Connect using psql (requires PostgreSQL client tools)
+nile db psql --name mydb
+
+# Get connection string
+nile db connectionstring --name mydb
+
+# Delete a database (use --force to skip confirmation)
+nile db delete mydb
+```
+
+## Tenant Management
+
+Nile provides built-in multi-tenancy support. Here's how to manage tenants:
+
+```bash
+# List all tenants
+nile tenants list
+
+# Create a tenant
+nile tenants create --name "My Tenant"                    # Auto-generated ID
+nile tenants create --name "My Tenant" --id custom-id     # Custom ID
+
+# Update tenant name
+nile tenants update --id tenant-123 --new_name "New Name"
+
+# Delete a tenant
+nile tenants delete --id tenant-123
+```
+
+## Global Options
+
+These options work with all commands:
+
+- `--api-key <key>`: API key for authentication
+- `--workspace <n>`: Workspace to use
+- `--db <n>`: Database to use
+- `-f, --format <type>`: Output format: human (default), json, or csv
+- `--color`: Enable colored output (default: true)
+- `--no-color`: Disable colored output
+- `--debug`: Enable debug output
+- `-h, --help`: Show help information
+
+## Output Formats
+
+The CLI supports multiple output formats for easy integration:
+
+```bash
+# Human-readable (default)
+nile db list
+
+# JSON format
+nile --format json db list
+
+# CSV format
+nile --format csv db list
+```
+
+## Debugging
+
+For troubleshooting:
+
+```bash
+# Enable debug output
+nile --debug db list
+
+# Check connection status
+nile connect status
+```
+
+## Common Workflows
+
+1. **Initial Setup**
    ```bash
-   # Set your configuration
-   nile config --workspace demo --db mydb --api-key YOUR_API_KEY
-
+   # Connect to Nile
+   nile connect
+   
+   # Set default workspace and database
+   nile config --workspace demo --db mydb
+   
    # Verify configuration
    nile config
    ```
 
-2. **Creating a Database**
+2. **Database Creation and Connection**
    ```bash
-   # List available regions
-   nile db regions
-   
-   # Create in specific region
+   # Create database
    nile db create --name mydb --region AWS_US_WEST_2
+   
+   # Connect using psql
+   nile db psql --name mydb
    ```
 
-3. **Getting Connection Details**
+3. **Tenant Management**
    ```bash
-   # Get PostgreSQL connection string
-   nile db connectionstring --name mydb --psql
-   postgres://01947d5b-ba0a-7bdd-9770-788de783cd61:your-password@us-west-2.db.thenile.dev:5432/mydb
-   ```
-
-4. **Managing Tenants**
-   ```bash
-   # Create a new tenant
-   nile tenants create --name "Acme Corp"
-
-   # Create tenant with specific ID
-   nile tenants create --name "Acme Corp" --id acme-123
-
+   # Create tenant
+   nile tenants create --name "Customer A"
+   
    # List all tenants
    nile tenants list
-
-   # Update tenant name
-   nile tenants update --id acme-123 --new_name "Acme Corporation"
-
-   # Delete tenant
-   nile tenants delete --id acme-123
-   ```
-
-5. **Automation Scripts**
-   ```bash
-   # Use JSON output and no colors
-   nile --format json --no-color db list
-   
-   # Force delete without confirmation
-   nile db delete mydb --force
    ```
 
 ## Contributing
