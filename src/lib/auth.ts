@@ -2,12 +2,15 @@ import http from 'http';
 import open from 'open';
 import axios from 'axios';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { TokenResponse } from './types';
 import { GlobalOptions } from './globalOptions';
 import { ConfigManager } from './config';
 
 export class Auth {
   private static DEFAULT_CLIENT_ID = 'nilecli';
+  private static AUTH_TIMEOUT = 120_000;  // 2 minutes
 
   private static generateCodeVerifier(): string {
     const buffer = crypto.randomBytes(32);
@@ -58,11 +61,31 @@ export class Auth {
     return `https://${domain}/oauth2/token`;
   }
 
+  private static getCallbackHtml(): string {
+    try {
+      let html = fs.readFileSync(path.join(__dirname, 'callback.html'), 'utf8');
+      const logoPath = path.join(__dirname, 'logo.jpg');
+      const logoBase64 = fs.readFileSync(logoPath, 'base64');
+      html = html.replace('LOGO_BASE64_PLACEHOLDER', logoBase64);
+      return html;
+    } catch (error) {
+      // Fallback HTML if file not found
+      return `
+        <!DOCTYPE html>
+        <html>
+          <body style="font-family: sans-serif; text-align: center; padding: 2rem;">
+            <h1 style="color: #2C7A7B;">Authentication Successful</h1>
+            <p>You can close this window and return to your terminal.</p>
+          </body>
+        </html>
+      `;
+    }
+  }
+
   static async getAuthorizationToken(
     configManager: ConfigManager,
     clientId: string = Auth.DEFAULT_CLIENT_ID
   ): Promise<string> {
-    const options = configManager.getAllConfig();
     if (configManager.getDebug()) {
       console.log('Debug - Starting auth with config:', {
         clientId: Auth.DEFAULT_CLIENT_ID,
@@ -176,9 +199,9 @@ export class Auth {
             console.log('Debug - Token exchange successful');
           }
 
-          // Send success response and close server
+          // Send success response with custom HTML
           res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('Authentication successful! You can close this window.');
+          res.end(this.getCallbackHtml());
           
           // Close server and resolve with token
           server.close(() => {
@@ -193,7 +216,6 @@ export class Auth {
             }
           }
 
-          // Send error response and close server
           closeServerAndReject(400, 'Authentication failed during token exchange. Please try again.', 
             axios.isAxiosError(error) && error.response 
               ? new Error(`Token exchange failed: ${error.response.data.error_description || error.response.data.error || error.message}`)
@@ -228,7 +250,7 @@ export class Auth {
           timeoutId = setTimeout(() => {
             server.close();
             reject(new Error('Authentication timed out after 2 minutes'));
-          }, 120000);
+          }, Auth.AUTH_TIMEOUT);
         } catch (error) {
           server.close();
           reject(error);
