@@ -1,3 +1,5 @@
+```![nile-doc-banner](https://github.com/user-attachments/assets/ac25403f-a4d2-4d32-9a3c-0b98a07fa9b5)
+
 # Nile CLI
 
 Command line interface for managing Nile databases. Easily create, manage, and monitor your Nile databases from the terminal.
@@ -12,7 +14,6 @@ npm install -g niledatabase
 
 # Install latest alpha version (for testing)
 npm install -g niledatabase@alpha
-```
 
 ### Using yarn
 
