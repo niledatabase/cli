@@ -2,6 +2,129 @@
 
 Command line interface for managing Nile databases. Easily create, manage, and monitor your Nile databases from the terminal.
 
+## Installation
+
+### Using npm
+
+```bash
+# Install latest stable version
+npm install -g niledatabase
+
+# Install latest alpha version (for testing)
+npm install -g niledatabase@alpha
+```
+
+### Using yarn
+
+```bash
+# Install latest stable version
+yarn global add niledatabase
+
+# Install latest alpha version (for testing)
+yarn global add niledatabase@alpha
+```
+
+### Using bun
+
+```bash
+# Install latest stable version
+bun install -g niledatabase
+
+# Install latest alpha version (for testing)
+bun install -g niledatabase@alpha
+```
+
+### Platform-specific Notes
+
+<details>
+  <summary><b>macOS</b></summary>
+
+The CLI should work out of the box on macOS. If you encounter permission issues:
+
+```bash
+# Using npm
+sudo npm install -g niledatabase
+
+# Using yarn
+sudo yarn global add niledatabase
+
+# Using bun
+sudo bun install -g niledatabase
+```
+</details>
+
+<details>
+  <summary><b>Linux</b></summary>
+
+On Linux systems, you might need to add the npm global bin directory to your PATH if it's not already there:
+
+```bash
+# Add this to your ~/.bashrc or ~/.zshrc
+export PATH="$PATH:$(npm config get prefix)/bin"
+
+# Then reload your shell
+source ~/.bashrc  # or source ~/.zshrc
+```
+</details>
+
+## Verifying Installation
+
+After installation, verify that the CLI is properly installed:
+
+```bash
+nile --version
+```
+
+## Usage
+
+```bash
+# Show help
+nile --help
+
+# List available commands
+nile help
+
+# Configure your workspace
+nile config --workspace <workspace-name>
+
+# List databases
+nile db list
+
+# Create a new database
+nile db create --name <db-name> --region <region>
+```
+
+## Development Versions
+
+If you want to try out the latest features before they're released:
+
+1. Alpha versions are published when changes are merged to the main branch
+2. Stable versions are published when changes are merged to the stable branch
+
+To install a specific version:
+
+```bash
+npm install -g niledatabase@<version>
+```
+
+## Troubleshooting
+
+If you encounter permission errors during installation:
+
+1. **Recommended approach** - Fix npm permissions:
+   ```bash
+   mkdir ~/.npm-global
+   npm config set prefix '~/.npm-global'
+   export PATH=~/.npm-global/bin:$PATH
+   ```
+
+2. **Alternative approach** - Use sudo (not recommended):
+   ```bash
+   sudo npm install -g niledatabase
+   ```
+
+For other issues, please check our [issues page](https://github.com/niledatabase/cli-latest/issues).
+
 ## Building from Source
 
 ### Prerequisites

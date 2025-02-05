@@ -1,0 +1,40 @@
+name: Prepare Stable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: 'PR title'
+        required: true
+        default: 'chore: prepare stable release'
+
+jobs:
+  create-stable-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          branch: prepare-stable-release
+          base: stable
+          title: ${{ github.event.inputs.title }}
+          body: |
+            This PR prepares a new stable release by merging changes from `main` into `stable`.
+            
+            After merging:
+            1. The release workflow will automatically run
+            2. A new stable version will be published to npm
+            3. Release notes will be generated
+            
+            Please review the changes carefully before merging.
+          labels: release 

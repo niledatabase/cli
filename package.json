@@ -1,5 +1,5 @@
 {
-  "name": "nile-cli",
+  "name": "niledatabase",
   "version": "1.0.0",
   "description": "Command line interface for Nile databases",
   "main": "dist/index.js",
@@ -9,16 +9,24 @@
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "tsc && npm run copy-files",
-    "postbuild": "chmod +x dist/index.js && sudo npm unlink -g nile-cli && sudo npm link",
+    "postbuild": "chmod +x dist/index.js",
     "copy-files": "mkdir -p dist/lib && cp src/lib/callback.html dist/lib/ && cp src/image/logo.jpg dist/lib/",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
     "test": "jest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["cli", "database", "nile", "postgres", "niledatabase"],
+  "author": "Nile",
   "license": "ISC",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/niledatabase/cli-latest.git"
+  },
   "dependencies": {
     "@niledatabase/react": "^3.0.0-alpha.40",
     "@theniledev/js": "^1.0.0-alpha.194",
@@ -30,12 +38,15 @@
     "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.0",
+    "@semantic-release/git": "^10.0.0",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.23.0",
     "@typescript-eslint/parser": "^8.23.0",
     "eslint": "^8.0.0",
     "jest": "^29.0.0",
+    "semantic-release": "^23.0.0",
     "ts-jest": "^29.0.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.0"
