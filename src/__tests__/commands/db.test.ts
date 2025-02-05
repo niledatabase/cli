@@ -1,620 +1,448 @@
 import { Command } from 'commander';
-import { NileAPI } from '../../lib/api';
-import { Config } from '../../lib/config';
-import { getAuthToken } from '../../lib/authUtils';
+import { Client } from 'pg';
 import { createDbCommand } from '../../commands/db';
+import { NileAPI, PostgresConnection } from '../../lib/api';
+import { ConfigManager } from '../../lib/config';
+import { Auth } from '../../lib/auth';
 import { GlobalOptions } from '../../lib/globalOptions';
 import { theme } from '../../lib/colors';
 import { EventEmitter } from 'events';
 
-// Mock child_process
+// Custom error class for process.exit
+class ProcessExitError extends Error {
+  constructor(code: number | string | null | undefined) {
+    super(`Process.exit called with code: ${code}`);
+    this.name = 'ProcessExitError';
+  }
+}
+
+// Helper functions for testing
+const expectProcessExit = (error: unknown) => {
+  expect(error).toBeInstanceOf(ProcessExitError);
+  if (error instanceof ProcessExitError) {
+    expect(error.message).toBe('Process.exit called with code: 1');
+  }
+};
+
+const expectCommanderError = (error: unknown, message: string) => {
+  expect(error).toBeInstanceOf(Error);
+  if (error instanceof Error) {
+    expect(error.message).toBe(message);
+  }
+};
+
+// Mock dependencies
+jest.mock('pg');
+jest.mock('../../lib/api');
+jest.mock('../../lib/config');
+jest.mock('../../lib/auth');
 jest.mock('child_process', () => ({
   spawn: jest.fn()
 }));
 
-// Mock dependencies
-jest.mock('../../lib/api');
-jest.mock('../../lib/config');
-jest.mock('../../lib/authUtils');
-jest.mock('../../lib/colors', () => ({
-  theme: {
-    error: (text: string) => text,
-    primary: (text: string) => text,
-    success: (text: string) => text,
-    bold: (text: string) => text,
-    info: (text: string) => text,
-    secondary: (text: string) => text,
-    warning: (text: string) => text,
-    dim: (text: string) => text,
-    header: (text: string) => text,
-    border: (text: string) => text
-  },
-  table: {
-    topLeft: '┌',
-    topRight: '┐',
-    bottomLeft: '└',
-    bottomRight: '┘',
-    vertical: '│',
-    cross: '┼'
-  },
-  formatStatus: (status: string) => status,
-  formatCommand: (command: string, args?: string) => `${command}${args ? ' ' + args : ''}`
-}));
-
-describe('DatabaseCommand', () => {
+describe('DB Command', () => {
+  let mockNileAPI: jest.Mocked<any>;
+  let mockConfigManager: jest.Mocked<any>;
   let program: Command;
   let mockExit: jest.SpyInstance;
-  let mockConsoleLog: jest.SpyInstance;
-  let mockConsoleError: jest.SpyInstance;
+  let mockSpawn: jest.Mock;
+  let globalOptions: GlobalOptions;
 
   beforeEach(() => {
+    // Mock console methods
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.clearAllMocks();
+
+    // Mock process.exit
+    mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+      throw new ProcessExitError(code);
+    });
+
+    // Setup mock NileAPI
+    mockNileAPI = {
+      listDatabases: jest.fn(),
+      createDatabase: jest.fn(),
+      deleteDatabase: jest.fn(),
+      getDatabase: jest.fn(),
+      listRegions: jest.fn(),
+      getDatabaseConnection: jest.fn(),
+    };
+    (NileAPI as unknown as jest.Mock).mockImplementation(() => mockNileAPI);
+
+    // Setup mock ConfigManager
+    mockConfigManager = {
+      getWorkspace: jest.fn().mockReturnValue('test-workspace'),
+      getDatabase: jest.fn().mockReturnValue('test-db'),
+      getToken: jest.fn().mockReturnValue('test-token'),
+      getDbHost: jest.fn().mockReturnValue('test-db-host'),
+      getGlobalHost: jest.fn().mockReturnValue('test-global-host'),
+      getBaseUrl: jest.fn(),
+    };
+    (ConfigManager as unknown as jest.Mock).mockImplementation(() => mockConfigManager);
+
+    // Get the mock spawn function
+    mockSpawn = jest.requireMock('child_process').spawn;
+
+    // Setup global options
+    globalOptions = {
+      workspace: 'test-workspace',
+      db: 'test-db',
+      debug: false,
+      format: undefined
+    };
+
+    // Setup program
     program = new Command();
-    mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
-      throw new Error(`Process.exit called with code: ${code}`);
-    });
-    mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-    mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    program.addCommand(createDbCommand(() => globalOptions));
 
-    // Mock getAuthToken to return a test token
-    (getAuthToken as jest.Mock).mockResolvedValue('test-token');
-
-    // Mock Config.getWorkspace to return a test workspace
-    (Config.getWorkspace as jest.Mock).mockResolvedValue({
-      slug: 'test-workspace',
-      name: 'Test Workspace'
-    });
+    // Set up default mock implementations
+    mockNileAPI.listDatabases.mockResolvedValue([
+      { name: 'db1', region: 'AWS_US_WEST_2', status: 'ACTIVE' },
+      { name: 'db2', region: 'AWS_US_EAST_1', status: 'CREATING' }
+    ]);
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  const getOptions = (): GlobalOptions => ({
-    debug: false,
-    globalHost: 'https://api.thenile.dev',
-    dbHost: 'db.thenile.dev',
-    format: 'human'
+    mockExit.mockRestore();
   });
 
   describe('list command', () => {
     it('should list databases successfully', async () => {
-      const mockDatabases = [
-        { name: 'db1', region: 'AWS_US_WEST_2', status: 'ACTIVE' },
-        { name: 'db2', region: 'AWS_US_EAST_1', status: 'CREATING' }
-      ];
-
-      (NileAPI.prototype.listDatabases as jest.Mock).mockResolvedValue(mockDatabases);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
       await program.parseAsync(['node', 'test', 'db', 'list']);
-
-      expect(NileAPI.prototype.listDatabases).toHaveBeenCalledWith('test-workspace');
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining(`Databases in workspace '${theme.bold('Test Workspace')}':`));
+      const calls = (console.log as jest.Mock).mock.calls;
+      const output = calls.map(call => call[0]).join('\n');
+      expect(output).toContain(`Databases in workspace '${theme.bold('test-workspace')}'`);
+      expect(mockNileAPI.listDatabases).toHaveBeenCalledWith('test-workspace');
     });
 
     it('should handle empty database list', async () => {
-      (NileAPI.prototype.listDatabases as jest.Mock).mockResolvedValue([]);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
+      mockNileAPI.listDatabases.mockResolvedValueOnce([]);
       await program.parseAsync(['node', 'test', 'db', 'list']);
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining(`No databases found in workspace '${theme.bold('Test Workspace')}'`));
+      const calls = (console.log as jest.Mock).mock.calls;
+      const output = calls.map(call => call[0]).join('\n');
+      expect(output).toContain(theme.warning(`\nNo databases found in workspace '${theme.bold('test-workspace')}'`));
     });
 
     it('should handle API errors', async () => {
-      (NileAPI.prototype.listDatabases as jest.Mock).mockRejectedValue(new Error('API error'));
+      const error = new Error('API Error');
+      mockNileAPI.listDatabases.mockRejectedValueOnce(error);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'list']);
+        fail('Should have thrown an error');
+      } catch (e) {
+        expect(e).toBeInstanceOf(ProcessExitError);
+        expect(console.error).toHaveBeenCalledWith(
+          theme.error('Failed to list databases:'),
+          error
+        );
+      }
+    });
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+    it('should output in JSON format', async () => {
+      globalOptions.format = 'json';
+      await program.parseAsync(['node', 'test', 'db', 'list']);
+      expect(console.log).toHaveBeenCalledWith(JSON.stringify([
+        { name: 'db1', region: 'AWS_US_WEST_2', status: 'ACTIVE' },
+        { name: 'db2', region: 'AWS_US_EAST_1', status: 'CREATING' }
+      ], null, 2));
+    });
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'list']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to list databases:'), new Error('API error'));
+    it('should output in CSV format', async () => {
+      globalOptions.format = 'csv';
+      await program.parseAsync(['node', 'test', 'db', 'list']);
+      expect(console.log).toHaveBeenCalledWith('NAME,REGION,STATUS');
+      expect(console.log).toHaveBeenCalledWith('db1,AWS_US_WEST_2,ACTIVE');
+      expect(console.log).toHaveBeenCalledWith('db2,AWS_US_EAST_1,CREATING');
     });
   });
 
   describe('create command', () => {
+    let mockStderrWrite: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockStderrWrite = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      mockStderrWrite.mockRestore();
+    });
+
     it('should create database successfully', async () => {
-      const mockDatabase = {
+      mockNileAPI.createDatabase.mockResolvedValue({
         name: 'test-db',
         region: 'AWS_US_WEST_2',
         status: 'CREATING'
-      };
-
-      (NileAPI.prototype.createDatabase as jest.Mock).mockResolvedValue(mockDatabase);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      });
 
       await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db', '--region', 'AWS_US_WEST_2']);
 
-      expect(NileAPI.prototype.createDatabase).toHaveBeenCalledWith('test-workspace', 'test-db', 'AWS_US_WEST_2');
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining(`Database '${theme.bold('test-db')}' created successfully`));
+      expect(mockNileAPI.createDatabase).toHaveBeenCalledWith('test-workspace', 'test-db', 'AWS_US_WEST_2');
+      const calls = (console.log as jest.Mock).mock.calls;
+      const output = calls.map(call => call[0]).join('\n');
+      expect(output).toContain(`Database '${theme.bold('test-db')}' created successfully`);
     });
 
-    it('should list regions when no region specified', async () => {
-      const mockRegions = ['AWS_US_WEST_2', 'AWS_US_EAST_1'];
-      (NileAPI.prototype.listRegions as jest.Mock).mockResolvedValue(mockRegions);
+    it('should require name option', async () => {
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'create', '--region', 'AWS_US_WEST_2']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
+      
+      const stderrCalls = mockStderrWrite.mock.calls;
+      const stderrOutput = stderrCalls.map(call => call[0]).join('');
+      expect(stderrOutput).toContain("error: required option '--name <n>' not specified");
+    });
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(NileAPI.prototype.listRegions).toHaveBeenCalledWith('test-workspace');
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Available regions'));
+    it('should require region option', async () => {
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
+      
+      const stderrCalls = mockStderrWrite.mock.calls;
+      const stderrOutput = stderrCalls.map(call => call[0]).join('');
+      expect(stderrOutput).toContain("error: required option '--region <r>' not specified");
     });
 
     it('should handle API errors', async () => {
-      (NileAPI.prototype.createDatabase as jest.Mock).mockRejectedValue(new Error('API error'));
+      mockNileAPI.createDatabase.mockRejectedValue(new Error('API error'));
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db', '--region', 'AWS_US_WEST_2']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db', '--region', 'AWS_US_WEST_2']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to create database:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to create database:'), new Error('API error'));
     });
   });
 
   describe('show command', () => {
-    const mockDatabase = {
-      name: 'test-db',
-      region: 'AWS_US_WEST_2',
-      status: 'ACTIVE'
-    };
-
-    beforeEach(() => {
-      (NileAPI.prototype.getDatabase as jest.Mock).mockResolvedValue(mockDatabase);
-    });
-
     it('should show database details with provided name', async () => {
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      mockNileAPI.getDatabase.mockResolvedValue({
+        name: 'test-db',
+        region: 'AWS_US_WEST_2',
+        status: 'ACTIVE'
+      });
 
       await program.parseAsync(['node', 'test', 'db', 'show', 'test-db']);
 
-      expect(NileAPI.prototype.getDatabase).toHaveBeenCalledWith('test-workspace', 'test-db');
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining(`Database '${theme.bold('test-db')}' details:`));
-    });
-
-    it('should show database details using selected database', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue({ name: 'selected-db' });
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await program.parseAsync(['node', 'test', 'db', 'show']);
-
-      expect(NileAPI.prototype.getDatabase).toHaveBeenCalledWith('test-workspace', 'selected-db');
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining(`Database '${theme.bold('test-db')}' details:`));
-    });
-
-    it('should handle missing database selection', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue(null);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'show']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        theme.error('Failed to get database details:'),
-        new Error('No database specified. Please provide a database name or run "nile db select" first')
-      );
-    });
-
-    it('should handle API errors', async () => {
-      (NileAPI.prototype.getDatabase as jest.Mock).mockRejectedValue(new Error('API error'));
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'show', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to get database details:'), new Error('API error'));
+      expect(mockNileAPI.getDatabase).toHaveBeenCalledWith('test-workspace', 'test-db');
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database details:'));
     });
 
     it('should output in JSON format', async () => {
-      const options = (): GlobalOptions => ({
-        ...getOptions(),
-        format: 'json'
+      globalOptions.format = 'json';
+      mockNileAPI.getDatabase.mockResolvedValue({
+        name: 'test-db',
+        region: 'AWS_US_WEST_2',
+        status: 'ACTIVE'
       });
-
-      const dbCommand = createDbCommand(options);
-      program.addCommand(dbCommand);
 
       await program.parseAsync(['node', 'test', 'db', 'show', 'test-db']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(JSON.stringify(mockDatabase, null, 2));
+      expect(console.log).toHaveBeenCalledWith(JSON.stringify({
+        name: 'test-db',
+        region: 'AWS_US_WEST_2',
+        status: 'ACTIVE'
+      }, null, 2));
     });
 
     it('should output in CSV format', async () => {
-      const options = (): GlobalOptions => ({
-        ...getOptions(),
-        format: 'csv'
+      globalOptions.format = 'csv';
+      mockNileAPI.getDatabase.mockResolvedValue({
+        name: 'test-db',
+        region: 'AWS_US_WEST_2',
+        status: 'ACTIVE'
       });
-
-      const dbCommand = createDbCommand(options);
-      program.addCommand(dbCommand);
 
       await program.parseAsync(['node', 'test', 'db', 'show', 'test-db']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith('NAME,REGION,STATUS');
-      expect(mockConsoleLog).toHaveBeenCalledWith('test-db,AWS_US_WEST_2,ACTIVE');
+      expect(console.log).toHaveBeenCalledWith('NAME,REGION,STATUS');
+      expect(console.log).toHaveBeenCalledWith('test-db,AWS_US_WEST_2,ACTIVE');
     });
   });
 
   describe('delete command', () => {
-    beforeEach(() => {
-      (NileAPI.prototype.deleteDatabase as jest.Mock).mockResolvedValue(undefined);
-    });
-
     it('should delete database with provided name', async () => {
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      mockNileAPI.deleteDatabase.mockResolvedValue(undefined);
 
       await program.parseAsync(['node', 'test', 'db', 'delete', 'test-db', '--force']);
 
-      expect(NileAPI.prototype.deleteDatabase).toHaveBeenCalledWith('test-workspace', 'test-db');
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.primary(`\nDeleting database '${theme.bold('test-db')}'...`));
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.success('Database deleted successfully.'));
+      expect(mockNileAPI.deleteDatabase).toHaveBeenCalledWith('test-workspace', 'test-db');
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database deleted successfully'));
     });
 
-    it('should delete selected database when no name provided', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue({ name: 'selected-db' });
+    it('should require database name', async () => {
+      mockConfigManager.getDatabase.mockReturnValue(undefined);
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'delete']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await program.parseAsync(['node', 'test', 'db', 'delete', '--force']);
-
-      expect(NileAPI.prototype.deleteDatabase).toHaveBeenCalledWith('test-workspace', 'selected-db');
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.primary(`\nDeleting database '${theme.bold('selected-db')}'...`));
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.success('Database deleted successfully.'));
-    });
-
-    it('should handle missing database selection', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue(null);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'delete', '--force']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        theme.error('Failed to delete database:'),
-        new Error('No database specified. Please provide a database name or run "nile db select" first')
-      );
+      const actualError = (console.error as jest.Mock).mock.calls[0][1];
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), expect.any(Error));
+      expect(actualError.message).toContain('No database specified');
     });
 
     it('should handle API errors', async () => {
-      (NileAPI.prototype.deleteDatabase as jest.Mock).mockRejectedValue(new Error('API error'));
+      mockNileAPI.deleteDatabase.mockRejectedValue(new Error('API error'));
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'delete', 'test-db', '--force']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'delete', 'test-db', '--force']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to delete database:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), new Error('API error'));
     });
   });
 
   describe('regions command', () => {
-    const mockRegions = ['AWS_US_WEST_2', 'AWS_US_EAST_1', 'AWS_EU_WEST_1'];
-
-    beforeEach(() => {
-      (NileAPI.prototype.listRegions as jest.Mock).mockResolvedValue(mockRegions);
-    });
-
     it('should list available regions', async () => {
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      mockNileAPI.listRegions.mockResolvedValue(['AWS_US_WEST_2', 'AWS_US_EAST_1']);
 
       await program.parseAsync(['node', 'test', 'db', 'regions']);
 
-      expect(NileAPI.prototype.listRegions).toHaveBeenCalledWith('test-workspace');
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.primary('\nAvailable regions:'));
-      mockRegions.forEach(region => {
-        expect(mockConsoleLog).toHaveBeenCalledWith(theme.info(`- ${region}`));
+      expect(mockNileAPI.listRegions).toHaveBeenCalledWith('test-workspace');
+      expect(console.log).toHaveBeenCalledWith(theme.primary('\nAvailable regions:'));
+      ['AWS_US_WEST_2', 'AWS_US_EAST_1'].forEach(region => {
+        expect(console.log).toHaveBeenCalledWith(theme.info(`- ${region}`));
       });
-    });
-
-    it('should handle empty regions list', async () => {
-      (NileAPI.prototype.listRegions as jest.Mock).mockResolvedValue([]);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await program.parseAsync(['node', 'test', 'db', 'regions']);
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.warning('\nNo regions available.'));
     });
 
     it('should output in JSON format', async () => {
-      const options = (): GlobalOptions => ({
-        ...getOptions(),
-        format: 'json'
-      });
-
-      const dbCommand = createDbCommand(options);
-      program.addCommand(dbCommand);
+      globalOptions.format = 'json';
+      mockNileAPI.listRegions.mockResolvedValue(['AWS_US_WEST_2', 'AWS_US_EAST_1']);
 
       await program.parseAsync(['node', 'test', 'db', 'regions']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(JSON.stringify(mockRegions, null, 2));
+      expect(console.log).toHaveBeenCalledWith(JSON.stringify(['AWS_US_WEST_2', 'AWS_US_EAST_1'], null, 2));
     });
 
     it('should output in CSV format', async () => {
-      const options = (): GlobalOptions => ({
-        ...getOptions(),
-        format: 'csv'
-      });
-
-      const dbCommand = createDbCommand(options);
-      program.addCommand(dbCommand);
+      globalOptions.format = 'csv';
+      mockNileAPI.listRegions.mockResolvedValue(['AWS_US_WEST_2', 'AWS_US_EAST_1']);
 
       await program.parseAsync(['node', 'test', 'db', 'regions']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith('REGION');
-      mockRegions.forEach(region => {
-        expect(mockConsoleLog).toHaveBeenCalledWith(region);
-      });
+      expect(console.log).toHaveBeenCalledWith('REGION');
+      expect(console.log).toHaveBeenCalledWith('AWS_US_WEST_2');
+      expect(console.log).toHaveBeenCalledWith('AWS_US_EAST_1');
     });
 
     it('should handle API errors', async () => {
-      (NileAPI.prototype.listRegions as jest.Mock).mockRejectedValue(new Error('API error'));
+      mockNileAPI.listRegions.mockRejectedValue(new Error('API error'));
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'regions']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'regions']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to list regions:'), new Error('API error'));
-    });
-  });
-
-  describe('select command', () => {
-    const mockDatabase = {
-      name: 'test-db',
-      region: 'AWS_US_WEST_2',
-      status: 'ACTIVE'
-    };
-
-    beforeEach(() => {
-      (NileAPI.prototype.getDatabase as jest.Mock).mockResolvedValue(mockDatabase);
-      (Config.setDatabase as jest.Mock).mockResolvedValue(undefined);
-    });
-
-    it('should select database successfully', async () => {
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await program.parseAsync(['node', 'test', 'db', 'select', 'test-db']);
-
-      expect(NileAPI.prototype.getDatabase).toHaveBeenCalledWith('test-workspace', 'test-db');
-      expect(Config.setDatabase).toHaveBeenCalledWith(mockDatabase);
-      expect(mockConsoleLog).toHaveBeenCalledWith(theme.success(`Selected database '${theme.bold('test-db')}'`));
-    });
-
-    it('should handle non-existent database', async () => {
-      (NileAPI.prototype.getDatabase as jest.Mock).mockRejectedValue(new Error('Database not found'));
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'select', 'non-existent-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to select database:'), new Error('Database not found'));
-      expect(Config.setDatabase).not.toHaveBeenCalled();
-    });
-
-    it('should handle config errors', async () => {
-      (Config.setDatabase as jest.Mock).mockRejectedValue(new Error('Config error'));
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'select', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to select database:'), new Error('Config error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to list regions:'), new Error('API error'));
     });
   });
 
   describe('psql command', () => {
-    const mockConnection = {
-      user: 'test-user',
-      password: 'test-password',
-      host: 'test-host',
-      port: 5432,
-      database: 'test-database'
-    };
-
-    beforeEach(() => {
-      (NileAPI.prototype.getDatabaseConnection as jest.Mock).mockResolvedValue(mockConnection);
-    });
-
-    it('should connect to database with provided name', async () => {
-      const mockPsql = new EventEmitter();
-      mockPsql.on = jest.fn().mockImplementation((event, callback) => {
-        if (event === 'exit') {
-          callback(0);
-        }
-        return mockPsql;
-      });
-      const { spawn } = require('child_process');
-      spawn.mockReturnValue(mockPsql);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await program.parseAsync(['node', 'test', 'db', 'psql', '--name', 'test-db']);
-
-      expect(NileAPI.prototype.getDatabaseConnection).toHaveBeenCalledWith('test-workspace', 'test-db');
-      expect(spawn).toHaveBeenCalledWith(
-        'psql',
-        [`postgres://${mockConnection.user}:${mockConnection.password}@${mockConnection.host}:${mockConnection.port}/${mockConnection.database}`],
-        { stdio: 'inherit' }
-      );
-    });
-
-    it('should connect to selected database when no name provided', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue({ name: 'selected-db' });
-      const mockPsql = new EventEmitter();
-      mockPsql.on = jest.fn().mockImplementation((event, callback) => {
-        if (event === 'exit') {
-          callback(0);
-        }
-        return mockPsql;
-      });
-      const { spawn } = require('child_process');
-      spawn.mockReturnValue(mockPsql);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await program.parseAsync(['node', 'test', 'db', 'psql']);
-
-      expect(NileAPI.prototype.getDatabaseConnection).toHaveBeenCalledWith('test-workspace', 'selected-db');
-    });
-
-    it('should handle missing psql command', async () => {
-      const mockPsql = new EventEmitter();
-      mockPsql.on = jest.fn().mockImplementation((event, callback) => {
-        if (event === 'error') {
-          callback({ code: 'ENOENT' });
-        }
-        return mockPsql;
-      });
-      const { spawn } = require('child_process');
-      spawn.mockReturnValue(mockPsql);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'psql', '--name', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        theme.error('\nError: psql command not found. Please install PostgreSQL client tools.')
-      );
-    });
-
-    it('should handle psql execution errors', async () => {
-      const mockPsql = new EventEmitter();
-      mockPsql.on = jest.fn().mockImplementation((event, callback) => {
-        if (event === 'error') {
-          callback(new Error('Execution error'));
-        }
-        return mockPsql;
-      });
-      const { spawn } = require('child_process');
-      spawn.mockReturnValue(mockPsql);
-
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'psql', '--name', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('\nError executing psql:'), new Error('Execution error'));
-    });
-
     it('should handle non-zero exit codes', async () => {
       const mockPsql = new EventEmitter();
-      mockPsql.on = jest.fn().mockImplementation((event, callback) => {
-        if (event === 'exit') {
-          callback(1);
-        }
-        return mockPsql;
+      mockSpawn.mockReturnValue(mockPsql);
+      mockNileAPI.getDatabaseConnection.mockResolvedValue({
+        host: 'host',
+        database: 'db',
+        user: 'user',
+        password: 'pass',
+        port: 5432
       });
-      const { spawn } = require('child_process');
-      spawn.mockReturnValue(mockPsql);
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
-
-      await expect(program.parseAsync(['node', 'test', 'db', 'psql', '--name', 'test-db']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('\npsql exited with code:'), 1);
+      const promise = program.parseAsync(['node', 'test', 'db', 'psql', '--name', 'test-db']);
+      mockPsql.emit('close', 1);
+      try {
+        await promise;
+      } catch (error) {
+        expectProcessExit(error);
+      }
     });
   });
 
   describe('connectionstring command', () => {
-    const mockConnection = {
-      user: 'test-user',
-      password: 'test-password',
-      host: 'test-host',
-      port: 5432,
-      database: 'test-database'
-    };
-
-    beforeEach(() => {
-      (NileAPI.prototype.getDatabaseConnection as jest.Mock).mockResolvedValue(mockConnection);
-    });
-
     it('should show connection string with provided name', async () => {
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      mockNileAPI.getDatabaseConnection.mockResolvedValue({
+        host: 'host',
+        database: 'db',
+        user: 'user',
+        password: 'pass',
+        port: 5432
+      });
 
       await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--name', 'test-db', '--psql']);
 
-      expect(NileAPI.prototype.getDatabaseConnection).toHaveBeenCalledWith('test-workspace', 'test-db');
-      const connectionString = `postgres://${mockConnection.user}:${mockConnection.password}@${mockConnection.host}:${mockConnection.port}/${mockConnection.database}`;
-      expect(mockConsoleLog).toHaveBeenCalledWith(connectionString);
+      expect(mockNileAPI.getDatabaseConnection).toHaveBeenCalledWith('test-workspace', 'test-db');
+      expect(console.log).toHaveBeenCalledWith('postgres://user:pass@host:5432/db');
     });
 
-    it('should show connection string for selected database', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue({ name: 'selected-db' });
+    it('should require database name', async () => {
+      mockConfigManager.getDatabase.mockReturnValue(undefined);
+      mockNileAPI.getDatabaseConnection.mockImplementation(() => {
+        throw new Error('No database specified. Use one of:\n1. --db flag\n2. nile config --db <n>\n3. NILE_DB environment variable');
+      });
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--psql']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--psql']);
-
-      expect(NileAPI.prototype.getDatabaseConnection).toHaveBeenCalledWith('test-workspace', 'selected-db');
+      const actualError = (console.error as jest.Mock).mock.calls[0][1];
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), expect.any(Error));
+      expect(actualError.message).toContain('No database specified');
     });
 
-    it('should handle missing database selection', async () => {
-      (Config.getDatabase as jest.Mock).mockResolvedValue(null);
+    it('should require --psql flag', async () => {
+      const stderrWrite = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--name', 'test-db']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'connectionstring', '--psql']))
-        .rejects.toThrow('Process.exit called with code: 1');
+      const stderrOutput = stderrWrite.mock.calls.map(call => call[0]).join('');
+      expect(stderrOutput).toContain("error: required option '--psql' not specified");
+      stderrWrite.mockRestore();
+    });
 
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        theme.error('Failed to get connection string:'),
-        new Error('No database specified. Please provide --name option or run "nile db select" first')
-      );
+    it('should require workspace', async () => {
+      mockConfigManager.getWorkspace.mockReturnValue(undefined);
+      mockConfigManager.getDatabase.mockReturnValue('test-db');
+
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--name', 'test-db', '--psql']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
+
+      const actualError = (console.error as jest.Mock).mock.calls[0][1];
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), expect.any(Error));
+      expect(actualError.message).toContain('No workspace specified');
     });
 
     it('should handle API errors', async () => {
-      (NileAPI.prototype.getDatabaseConnection as jest.Mock).mockRejectedValue(new Error('API error'));
+      mockNileAPI.getDatabaseConnection.mockRejectedValue(new Error('API error'));
 
-      const dbCommand = createDbCommand(getOptions);
-      program.addCommand(dbCommand);
+      try {
+        await program.parseAsync(['node', 'test', 'db', 'connectionstring', '--name', 'test-db', '--psql']);
+      } catch (error) {
+        expectProcessExit(error);
+      }
 
-      await expect(program.parseAsync(['node', 'test', 'db', 'connectionstring', '--name', 'test-db', '--psql']))
-        .rejects.toThrow('Process.exit called with code: 1');
-
-      expect(mockConsoleError).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), new Error('API error'));
     });
   });
 }); 

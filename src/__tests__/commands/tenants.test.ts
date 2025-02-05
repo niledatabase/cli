@@ -1,15 +1,16 @@
 import { Command } from 'commander';
-import { Client } from 'pg';
+import { Client, QueryResult } from 'pg';
 import { TenantsCommand } from '../../commands/tenants';
 import { NileAPI } from '../../lib/api';
-import { Config } from '../../lib/config';
-import { getAuthToken } from '../../lib/authUtils';
+import { ConfigManager } from '../../lib/config';
+import { Auth } from '../../lib/auth';
+import { GlobalOptions } from '../../lib/globalOptions';
 
 // Mock dependencies
 jest.mock('pg');
 jest.mock('../../lib/api');
 jest.mock('../../lib/config');
-jest.mock('../../lib/authUtils');
+jest.mock('../../lib/auth');
 
 // Mock process.exit
 const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {
@@ -20,6 +21,9 @@ describe('Tenants Command', () => {
   let program: Command;
   let mockClient: jest.Mocked<Client>;
   let mockNileAPI: jest.Mocked<NileAPI>;
+  let mockConfigManager: jest.Mocked<ConfigManager>;
+  let mockAuth: jest.Mocked<Auth>;
+  let getOptions: () => GlobalOptions;
 
   beforeEach(() => {
     // Reset mocks before each test
@@ -28,35 +32,65 @@ describe('Tenants Command', () => {
     // Setup mock pg client
     mockClient = {
       query: jest.fn(),
-      connect: jest.fn(),
-      end: jest.fn(),
+      connect: jest.fn().mockResolvedValue(undefined),
+      end: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<Client>;
     (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
 
     // Setup mock NileAPI
     mockNileAPI = {
+      getDatabaseConnection: jest.fn().mockResolvedValue({
+        host: 'test-host',
+        port: 5432,
+        database: 'test-db',
+        user: 'test-user',
+        password: 'test-pass'
+      }),
       createDatabaseCredentials: jest.fn().mockResolvedValue({
         id: 'test-user',
         password: 'test-pass',
         database: {
-          region: 'AWS_US_WEST_2'
+          region: 'AWS_US_WEST_2',
+          name: 'test-db'
         }
       })
     } as unknown as jest.Mocked<NileAPI>;
     (NileAPI as unknown as jest.Mock).mockImplementation(() => mockNileAPI);
 
-    // Mock Config and auth
-    (Config.getWorkspace as jest.Mock).mockResolvedValue({ slug: 'test-workspace' });
-    (Config.getDatabase as jest.Mock).mockResolvedValue({ name: 'test-db' });
-    (getAuthToken as jest.Mock).mockResolvedValue('test-token');
+    // Setup mock options
+    getOptions = () => ({
+      workspace: 'test-workspace',
+      db: 'test-database',
+      dbHost: 'test-host',
+      globalHost: 'test-global-host',
+      apiKey: 'test-token'
+    });
+
+    // Setup mock ConfigManager
+    mockConfigManager = {
+      getWorkspace: jest.fn().mockReturnValue('test-workspace'),
+      getDatabase: jest.fn().mockReturnValue('test-database'),
+      getToken: jest.fn().mockReturnValue('test-token'),
+      getDbHost: jest.fn().mockReturnValue('test-host'),
+      getGlobalHost: jest.fn().mockReturnValue('test-global-host'),
+      getAuthUrl: jest.fn().mockReturnValue('test-auth-url'),
+      getDebug: jest.fn().mockReturnValue(false)
+    } as unknown as jest.Mocked<ConfigManager>;
+    (ConfigManager as unknown as jest.Mock).mockImplementation(() => mockConfigManager);
+
+    // Mock Auth
+    mockAuth = {
+      getAuthorizationToken: jest.fn().mockResolvedValue('test-token')
+    } as unknown as jest.Mocked<Auth>;
+    (Auth as unknown as jest.Mock).mockImplementation(() => mockAuth);
     
-    // Setup program
+    // Setup program and options
     program = new Command();
-    new TenantsCommand(program, () => ({}));
+    new TenantsCommand(program, getOptions);
   });
 
-  afterAll(() => {
-    mockExit.mockRestore();
+  afterEach(async () => {
+    await mockClient.end();
   });
 
   describe('list command', () => {
@@ -66,7 +100,7 @@ describe('Tenants Command', () => {
         { id: 'tenant-2', name: 'Tenant 2' }
       ];
       
-      (mockClient.query as jest.Mock).mockResolvedValueOnce({ rows: mockTenants });
+      (mockClient.query as jest.Mock).mockResolvedValueOnce({ rows: mockTenants } as QueryResult);
 
       await program.parseAsync(['node', 'test', 'tenants', 'list']);
 
@@ -204,6 +238,8 @@ describe('Tenants Command', () => {
       await expect(
         program.parseAsync(['node', 'test', 'tenants', 'create', '--name', 'New Tenant'])
       ).rejects.toThrow('Process.exit called with code: 1');
+
+      expect(mockClient.end).toHaveBeenCalled();
     });
   });
 }); 

@@ -227,6 +227,10 @@ Examples:
             console.error(theme.error('\nFailed to delete tenant:'), error);
           }
           process.exit(1);
+        } finally {
+          if (client) {
+            await client.end();
+          }
         }
       });
 
