@@ -12,10 +12,26 @@ jest.mock('../../lib/api');
 jest.mock('../../lib/config');
 jest.mock('../../lib/auth');
 
+// Custom error class for process.exit
+class ProcessExitError extends Error {
+  constructor(code: number | string | null | undefined) {
+    super(`Process.exit called with code: ${code}`);
+    this.name = 'ProcessExitError';
+  }
+}
+
 // Mock process.exit
-const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {
-  throw new Error('Process.exit called with code: 1');
-}) as jest.SpyInstance;
+let mockExit: jest.SpyInstance;
+
+beforeAll(() => {
+  mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: number | string | null | undefined) => {
+    throw new ProcessExitError(code);
+  });
+});
+
+afterAll(() => {
+  mockExit.mockRestore();
+});
 
 describe('Tenants Command', () => {
   let program: Command;

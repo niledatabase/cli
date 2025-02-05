@@ -3,6 +3,7 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, table, formatStatus, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
+import { spawn } from 'child_process';
 
 type GetOptions = () => GlobalOptions;
 
@@ -153,7 +154,7 @@ ${getGlobalOptionsHelp()}`);
         if (!workspaceSlug) {
           throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
-            '2. nile config --workspace <name>\n' +
+            '2. nile config --workspace <n>\n' +
             '3. NILE_WORKSPACE environment variable');
         }
 
@@ -182,8 +183,12 @@ ${getGlobalOptionsHelp()}`);
         console.log(`${theme.secondary('Name:')}    ${theme.primary(database.name)}`);
         console.log(`${theme.secondary('Region:')}  ${theme.info(database.region)}`);
         console.log(`${theme.secondary('Status:')}  ${formatStatus(database.status)}`);
-      } catch (error) {
-        console.error(theme.error('Failed to create database:'), error);
+      } catch (error: any) {
+        if (error.response?.data?.errors) {
+          console.error(theme.error('Failed to create database:'), new Error(error.response.data.errors.join(', ')));
+        } else {
+          console.error(theme.error('Failed to create database:'), error instanceof Error ? error : new Error(error.message || error));
+        }
         process.exit(1);
       }
     });
@@ -337,7 +342,6 @@ ${getGlobalOptionsHelp()}`);
         const connectionString = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
 
         // Execute psql command
-        const { spawn } = require('child_process');
         const psql = spawn('psql', [connectionString], {
           stdio: 'inherit'
         });

@@ -1,9 +1,7 @@
 import { Command } from 'commander';
-import { Client } from 'pg';
 import { createDbCommand } from '../../commands/db';
-import { NileAPI, PostgresConnection } from '../../lib/api';
+import { NileAPI } from '../../lib/api';
 import { ConfigManager } from '../../lib/config';
-import { Auth } from '../../lib/auth';
 import { GlobalOptions } from '../../lib/globalOptions';
 import { theme } from '../../lib/colors';
 import { EventEmitter } from 'events';
@@ -21,13 +19,6 @@ const expectProcessExit = (error: unknown) => {
   expect(error).toBeInstanceOf(ProcessExitError);
   if (error instanceof ProcessExitError) {
     expect(error.message).toBe('Process.exit called with code: 1');
-  }
-};
-
-const expectCommanderError = (error: unknown, message: string) => {
-  expect(error).toBeInstanceOf(Error);
-  if (error instanceof Error) {
-    expect(error.message).toBe(message);
   }
 };
 
@@ -50,8 +41,8 @@ describe('DB Command', () => {
 
   beforeEach(() => {
     // Mock console methods
-    jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'log').mockImplementation(() => true);
+    jest.spyOn(console, 'error').mockImplementation(() => true);
     jest.clearAllMocks();
 
     // Mock process.exit

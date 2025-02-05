@@ -12,7 +12,11 @@ export function configCommand(): Command {
                 .env('NILE_API_KEY')
         )
         .action((options, cmd) => {
-            const globalOpts = getGlobalOptions(cmd.parent!);
+            const parent = cmd.parent;
+            if (!parent) {
+                throw new Error('Parent command not found');
+            }
+            const globalOpts = getGlobalOptions(parent);
             const debug = globalOpts.debug || false;
             
             if (debug) {
@@ -86,7 +90,11 @@ export function configCommand(): Command {
         .command('reset')
         .description('Reset configuration to defaults')
         .action((options, cmd) => {
-            const globalOpts = getGlobalOptions(cmd.parent!);
+            const parent = cmd.parent;
+            if (!parent) {
+                throw new Error('Parent command not found');
+            }
+            const globalOpts = getGlobalOptions(parent);
             const configManager = new ConfigManager(globalOpts);
             configManager.resetConfig();
             console.log('Configuration has been reset to defaults.');

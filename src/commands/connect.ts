@@ -21,7 +21,7 @@ ${getGlobalOptionsHelp()}`);
     .command('login')
     .description('Connect to Nile using browser-based authentication')
     .option('--client-id <id>', 'OAuth client ID', 'nilecli')
-    .action(async (cmdOptions) => {
+    .action(async () => {
       try {
         const globalOptions = getOptions();
         const configManager = new ConfigManager(globalOptions);
@@ -39,7 +39,7 @@ ${getGlobalOptionsHelp()}`);
           console.log('Debug - Auth URL:', configManager.getAuthUrl());
         }
         
-        const token = await Auth.getAuthorizationToken(configManager, cmdOptions.clientId);
+        const token = await Auth.getAuthorizationToken(configManager);
         if (token) {
           configManager.setToken(token);
           console.log(theme.success('\nSuccessfully connected to Nile!'));

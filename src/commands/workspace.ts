@@ -5,13 +5,6 @@ import { theme, table, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import axios from 'axios';
 
-interface Workspace {
-  name: string;
-  slug: string;
-  id?: string;
-  created?: string;
-}
-
 type GetOptions = () => GlobalOptions;
 
 export function createWorkspaceCommand(getOptions: GetOptions): Command {

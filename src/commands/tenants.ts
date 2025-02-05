@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { Client } from 'pg';
 import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
-import { theme, table, formatCommand } from '../lib/colors';
+import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
@@ -100,7 +100,6 @@ Examples:
         try {
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
-          const token = await configManager.getToken();
           const api = new NileAPI({
             token: configManager.getToken(),
             dbHost: configManager.getDbHost(),
