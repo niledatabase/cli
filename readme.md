@@ -14,6 +14,7 @@ npm install -g niledatabase
 
 # Install latest alpha version (for testing)
 npm install -g niledatabase@alpha
+```
 
 ### Using yarn
 
