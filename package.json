@@ -25,7 +25,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/niledatabase/cli-latest.git"
+    "url": "https://github.com/niledatabase/cli.git"
   },
   "dependencies": {
     "@niledatabase/react": "^3.0.0-alpha.40",
