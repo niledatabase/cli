@@ -37,7 +37,7 @@
     "branches": [
       {
         "name": "main",
-        "prerelease": true,
+        "prerelease": "alpha",
         "channel": "alpha"
       },
       {
@@ -54,6 +54,7 @@
         {
           "npmPublish": true,
           "pkgRoot": ".",
+          "tag": "alpha",
           "registries": {
             "npmjs": {
               "url": "https://registry.npmjs.org/"
