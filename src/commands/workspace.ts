@@ -63,7 +63,7 @@ ${getGlobalOptionsHelp()}`);
         // Table rows
         workspaces.forEach(w => {
           console.log(
-            `${table.vertical} ${theme.primary(w.name.padEnd(18))}${table.vertical} ${theme.info(w.slug.padEnd(18))}${table.vertical}`
+            `${table.vertical} ${theme.primary(w.name.padEnd(20))}${table.vertical} ${theme.info(w.slug.padEnd(20))}${table.vertical}`
           );
         });
 
