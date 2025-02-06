@@ -50,7 +50,8 @@
         {
           "npmPublish": true,
           "pkgRoot": ".",
-          "registry": "https://registry.npmjs.org/"
+          "registry": "https://registry.npmjs.org/",
+          "tag": "alpha"
         }
       ],
       [
@@ -58,7 +59,8 @@
         {
           "npmPublish": true,
           "pkgRoot": ".",
-          "registry": "https://npm.pkg.github.com/"
+          "registry": "https://npm.pkg.github.com/",
+          "tag": "alpha"
         }
       ],
       "@semantic-release/git"
