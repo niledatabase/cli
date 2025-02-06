@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/niledatabase/cli/compare/v1.0.2...v1.0.3) (2025-02-06)
+
+
+### Bug Fixes
+
+* do not publish twice to npm during release ([b74bb1e](https://github.com/niledatabase/cli/commit/b74bb1e12318a0f1183bb07ef4962c43488ad7ae))
+
 ## [1.0.2](https://github.com/niledatabase/cli/compare/v1.0.1...v1.0.2) (2025-02-06)
 
 
