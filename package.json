@@ -50,17 +50,15 @@
         {
           "npmPublish": true,
           "pkgRoot": ".",
-          "registry": "https://registry.npmjs.org/",
-          "tag": "alpha"
-        }
-      ],
-      [
-        "@semantic-release/npm",
-        {
-          "npmPublish": true,
-          "pkgRoot": ".",
-          "registry": "https://npm.pkg.github.com/",
-          "tag": "alpha"
+          "tag": "alpha",
+          "registries": {
+            "npmjs": {
+              "url": "https://registry.npmjs.org/"
+            },
+            "github": {
+              "url": "https://npm.pkg.github.com/"
+            }
+          }
         }
       ],
       "@semantic-release/git"
