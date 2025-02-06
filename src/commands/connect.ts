@@ -11,9 +11,14 @@ export function createConnectCommand(getOptions: GetOptions): Command {
     .description('Connect to Nile')
     .addHelpText('after', `
 Examples:
-  ${formatCommand('nile connect')}                    Connect to Nile using browser
-  ${formatCommand('nile connect status')}             Check connection status
-  ${formatCommand('nile connect logout')}             Clear stored credentials
+  # Authentication
+  ${formatCommand('nile connect login')}                    Login to Nile using browser-based authentication
+  ${formatCommand('nile connect status')}                   Check connection status
+  ${formatCommand('nile connect logout')}                   Logout and clear stored credentials
+
+  # Alternative authentication methods
+  ${formatCommand('nile --api-key YOUR_API_KEY db list')}  Use API key directly in commands
+  ${formatCommand('nile config --api-key YOUR_API_KEY')}   Save API key in configuration
 
 ${getGlobalOptionsHelp()}`);
 
