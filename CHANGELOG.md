@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/niledatabase/cli/compare/v1.0.3...v1.0.4) (2025-02-06)
+
+
+### Bug Fixes
+
+* - triggers a patch release (0.0.x) ([552f399](https://github.com/niledatabase/cli/commit/552f399d98ce5f1ed9c0acb97b5f2cebd96ec5a7))
+
 ## [1.0.3](https://github.com/niledatabase/cli/compare/v1.0.2...v1.0.3) (2025-02-06)
 
 
