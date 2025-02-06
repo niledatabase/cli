@@ -1,3 +1,10 @@
+## [1.0.7](https://github.com/niledatabase/cli/compare/v1.0.6...v1.0.7) (2025-02-06)
+
+
+### Bug Fixes
+
+* try alpha tag again ([1cca0ae](https://github.com/niledatabase/cli/commit/1cca0aecbec8094ed4312d485c6c636b0b668472))
+
 ## [1.0.6](https://github.com/niledatabase/cli/compare/v1.0.5...v1.0.6) (2025-02-06)
 
 

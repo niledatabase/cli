@@ -1,6 +1,6 @@
 {
   "name": "niledatabase",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Command line interface for Nile databases",
   "main": "dist/index.js",
   "bin": {
@@ -47,10 +47,13 @@
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
-      ["@semantic-release/npm", {
-        "npmPublish": true,
-        "pkgRoot": "."
-      }],
+      [
+        "@semantic-release/npm",
+        {
+          "npmPublish": true,
+          "pkgRoot": "."
+        }
+      ],
       "@semantic-release/git"
     ]
   },
