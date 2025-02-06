@@ -1,3 +1,10 @@
+## [1.0.9-alpha.4](https://github.com/niledatabase/cli/compare/v1.0.9-alpha.3...v1.0.9-alpha.4) (2025-02-06)
+
+
+### Bug Fixes
+
+* table alignment on output ([88da50d](https://github.com/niledatabase/cli/commit/88da50d6f50c86c59f4bcd0c433db43eda5e3d27))
+
 ## [1.0.9-alpha.3](https://github.com/niledatabase/cli/compare/v1.0.9-alpha.2...v1.0.9-alpha.3) (2025-02-06)
 
 
