@@ -111,7 +111,7 @@ npm install -g niledatabase@<version>
 
 If you encounter permission errors during installation:
 
-1. **Recommended approach** - Fix npm permissions:
+1. **Recommended approach** - Fix npm permission:
    ```bash
    mkdir ~/.npm-global
    npm config set prefix '~/.npm-global'
