@@ -24,7 +24,7 @@
     "niledatabase"
   ],
   "author": "Nile",
-  "license": "ISC",
+  "license": "MIT",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -37,9 +37,13 @@
     "branches": [
       {
         "name": "main",
-        "prerelease": "alpha"
+        "prerelease": true,
+        "channel": "alpha"
       },
-      "stable"
+      {
+        "name": "stable",
+        "channel": "latest"
+      }
     ],
     "plugins": [
       "@semantic-release/commit-analyzer",
@@ -50,7 +54,6 @@
         {
           "npmPublish": true,
           "pkgRoot": ".",
-          "tag": "alpha",
           "registries": {
             "npmjs": {
               "url": "https://registry.npmjs.org/"
