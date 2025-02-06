@@ -77,13 +77,33 @@ export class TenantsCommand {
       .description('Manage tenants in your database')
       .addHelpText('after', `
 Examples:
+  # List tenants
   ${formatCommand('nile tenants list')}                                List all tenants
-  ${formatCommand('nile tenants list', '--workspace myworkspace --db mydb')}  List tenants with explicit workspace/db
-  ${formatCommand('nile tenants create', '--name "My Tenant"')}              Create a tenant
-  ${formatCommand('nile tenants create', '--name "My Tenant" --id custom-uuid')}  Create tenant with custom ID
-  ${formatCommand('nile tenants update', 'tenant-id --name "New Name"')}     Update tenant name
-  ${formatCommand('nile tenants delete', 'tenant-id')}                       Delete a tenant
-  ${formatCommand('nile tenants list', '--format json')}                     Output in JSON format
+  ${formatCommand('nile tenants list', '--workspace myworkspace')}     List tenants in specific workspace
+  ${formatCommand('nile tenants list', '--db mydb')}                  List tenants in specific database
+  ${formatCommand('nile tenants list', '--format json')}              Output in JSON format
+  ${formatCommand('nile tenants list', '--format csv')}               Output in CSV format
+
+  # Create tenants
+  ${formatCommand('nile tenants create', '--name "My Tenant"')}              Create tenant with auto-generated ID
+  ${formatCommand('nile tenants create', '--name "My Tenant" --id custom-id')}  Create tenant with custom ID
+  ${formatCommand('nile tenants create', '--name "Customer A"')}             Create tenant for a customer
+  ${formatCommand('nile tenants create', '--name "Organization B" --id org-b')}  Create tenant with organization ID
+
+  # Update tenants
+  ${formatCommand('nile tenants update', '--id tenant-123 --new_name "New Name"')}     Update tenant name
+  ${formatCommand('nile tenants update', '--id org-b --new_name "Organization B Ltd"')} Update organization name
+  ${formatCommand('nile tenants update', '--id custom-id --new_name "Updated Name"')}   Update custom tenant name
+
+  # Delete tenants
+  ${formatCommand('nile tenants delete', '--id tenant-123')}                       Delete tenant by ID
+  ${formatCommand('nile tenants delete', '--id org-b')}                           Delete organization tenant
+  ${formatCommand('nile tenants delete', '--id 550e8400-e29b-41d4-a716-446655440000')}  Delete tenant by UUID
+
+  # Using with different output formats
+  ${formatCommand('nile tenants list', '--format json')}                     List tenants in JSON format
+  ${formatCommand('nile tenants list', '--format csv')}                      List tenants in CSV format
+  ${formatCommand('nile tenants create', '--name "New Tenant" --format json')}  Create tenant with JSON output
 
 ${getGlobalOptionsHelp()}`);
 
