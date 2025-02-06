@@ -1,12 +1,28 @@
-## [1.0.9](https://github.com/niledatabase/cli/compare/v1.0.8...v1.0.9) (2025-02-06)
+## [1.0.10-alpha.1](https://github.com/niledatabase/cli/compare/v1.0.9...v1.0.10-alpha.1) (2025-02-06)
 
 
 ### Bug Fixes
 
-* -fix prerelease ([afc4c09](https://github.com/niledatabase/cli/commit/afc4c09c633939f498f5cf8202cf8d96a267879d))
-* -main release should now be correct ([88f9291](https://github.com/niledatabase/cli/commit/88f92910c1cbf267994d7ec9dab5a1fdc771ab89))
-* -semantic release ([c4f78d4](https://github.com/niledatabase/cli/commit/c4f78d498a7d9e7183d21e8cd6e87696f9dd5957))
-* test on pull request ([de27a9b](https://github.com/niledatabase/cli/commit/de27a9b0b755b0ca8f4c69ab42d497e83a4733e2))
+* increment alpha version ([57cf610](https://github.com/niledatabase/cli/commit/57cf610ceafd6b1a4bcf9b60b5c1a5f4edb2782a))
+* increment version in alpha and add contributing file ([4c17450](https://github.com/niledatabase/cli/commit/4c1745023a2a048022d2a0efea2dfd1dd6c829c3))
+* table alignment on output ([88da50d](https://github.com/niledatabase/cli/commit/88da50d6f50c86c59f4bcd0c433db43eda5e3d27))
+* update package.lock as well ([3e357d7](https://github.com/niledatabase/cli/commit/3e357d7b228949ae52fe7625aef840c17a80ceaa))
+
+## [1.0.9-alpha.5](https://github.com/niledatabase/cli/compare/v1.0.9-alpha.4...v1.0.9-alpha.5) (2025-02-06)
+
+
+### Bug Fixes
+
+* increment alpha version ([57cf610](https://github.com/niledatabase/cli/commit/57cf610ceafd6b1a4bcf9b60b5c1a5f4edb2782a))
+* increment version in alpha and add contributing file ([4c17450](https://github.com/niledatabase/cli/commit/4c1745023a2a048022d2a0efea2dfd1dd6c829c3))
+* update package.lock as well ([3e357d7](https://github.com/niledatabase/cli/commit/3e357d7b228949ae52fe7625aef840c17a80ceaa))
+
+## [1.0.9-alpha.4](https://github.com/niledatabase/cli/compare/v1.0.9-alpha.3...v1.0.9-alpha.4) (2025-02-06)
+
+
+### Bug Fixes
+
+* table alignment on output ([88da50d](https://github.com/niledatabase/cli/commit/88da50d6f50c86c59f4bcd0c433db43eda5e3d27))
 
 ## [1.0.9-alpha.3](https://github.com/niledatabase/cli/compare/v1.0.9-alpha.2...v1.0.9-alpha.3) (2025-02-06)
 
