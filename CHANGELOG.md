@@ -1,3 +1,13 @@
+## [1.0.10](https://github.com/niledatabase/cli/compare/v1.0.9...v1.0.10) (2025-02-06)
+
+
+### Bug Fixes
+
+* increment alpha version ([57cf610](https://github.com/niledatabase/cli/commit/57cf610ceafd6b1a4bcf9b60b5c1a5f4edb2782a))
+* increment version in alpha and add contributing file ([4c17450](https://github.com/niledatabase/cli/commit/4c1745023a2a048022d2a0efea2dfd1dd6c829c3))
+* table alignment on output ([88da50d](https://github.com/niledatabase/cli/commit/88da50d6f50c86c59f4bcd0c433db43eda5e3d27))
+* update package.lock as well ([3e357d7](https://github.com/niledatabase/cli/commit/3e357d7b228949ae52fe7625aef840c17a80ceaa))
+
 ## [1.0.10-alpha.1](https://github.com/niledatabase/cli/compare/v1.0.9...v1.0.10-alpha.1) (2025-02-06)
 
 
