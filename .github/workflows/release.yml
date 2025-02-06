@@ -1,66 +1,58 @@
-name: Publish CLI Stable Release
+name: Publish CLI Release
 
 on:
   push:
     branches:
-      - stable
+      - main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: stable
+          token: ${{secrets.PAT}}
 
-      - name: Enable Corepack
+      - name: Enable Corepack before setting up Node
         run: corepack enable
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20.x"
 
-      - name: Setup npm auth
+      - name: Authenticate to npm
         run: |
           echo "registry=https://registry.npmjs.org/" >> .npmrc
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> .npmrc
+          npm whoami
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Install and Build
-        run: |
-          yarn install --immutable
-          yarn build
-          yarn test
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
+
+      - name: Run tests
+        run: yarn test
 
       - name: Version and Publish
-        run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          yarn version --message "chore(release): %s [skip ci]"
-          yarn publish --access public
         env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish to GitHub Packages
         run: |
-          echo "registry=https://npm.pkg.github.com/" > .npmrc
+          # Configure both npm and GitHub Package registries
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> .npmrc
+          echo "@niledatabase:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=$GITHUB_TOKEN" >> .npmrc
-          yarn publish --access public --registry https://npm.pkg.github.com/
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Release
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const tag = require('./package.json').version;
-            await github.request(`POST /repos/${{ github.repository }}/releases`, {
-              tag_name: "v" + tag,
-              generate_release_notes: true
-            }); 
+          
+          # Run semantic-release with prerelease configuration
+          npx semantic-release
