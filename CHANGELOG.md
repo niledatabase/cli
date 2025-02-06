@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/niledatabase/cli/compare/v1.0.4...v1.0.5) (2025-02-06)
+
+
+### Bug Fixes
+
+* -try alpha ([0f4cec8](https://github.com/niledatabase/cli/commit/0f4cec80bd720da8c51f6569f7f4790237ac5a51))
+
 ## [1.0.4](https://github.com/niledatabase/cli/compare/v1.0.3...v1.0.4) (2025-02-06)
 
 
