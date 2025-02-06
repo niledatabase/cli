@@ -45,9 +45,10 @@ jobs:
 
       - name: Version and Publish
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npx semantic-release --preset @semantic-release/npm --branches main --prerelease alpha
+          npx semantic-release --branches main --prerelease alpha
 
       - name: Update npm for GitHub Packages
         run: |
@@ -55,7 +56,7 @@ jobs:
           echo "registry=https://npm.pkg.github.com/" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc
         env:
-          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to GitHub Packages
         run: yarn publish --tag alpha --access public --registry https://npm.pkg.github.com/ 
