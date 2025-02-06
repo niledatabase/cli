@@ -1,9 +1,10 @@
 import { Command } from 'commander';
 import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
-import { theme, table, formatCommand } from '../lib/colors';
+import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import axios from 'axios';
+import Table from 'cli-table3';
 
 type GetOptions = () => GlobalOptions;
 
@@ -51,29 +52,56 @@ ${getGlobalOptionsHelp()}`);
           return;
         }
 
-        // Create a nicely formatted table
+        // Create a nicely formatted table using cli-table3
         console.log(theme.primary('\nAvailable workspaces:'));
         
-        // Table header
-        const header = `${table.topLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(20)}${table.topRight}`;
-        console.log(header);
-        console.log(`${table.vertical}${theme.header(' NAME').padEnd(20)}${table.vertical}${theme.header(' SLUG').padEnd(20)}${table.vertical}`);
-        console.log(`${table.vertical}${theme.border('─'.repeat(19))}${table.vertical}${theme.border('─'.repeat(19))}${table.vertical}`);
-
-        // Table rows
-        workspaces.forEach(w => {
-          console.log(
-            `${table.vertical} ${theme.primary(w.name.padEnd(20))}${table.vertical} ${theme.info(w.slug.padEnd(20))}${table.vertical}`
-          );
+        const table = new Table({
+          head: [
+            theme.header('NAME'),
+            theme.header('SLUG')
+          ],
+          style: {
+            head: [],
+            border: [],
+          },
+          chars: {
+            'top': '─',
+            'top-mid': '┬',
+            'top-left': '┌',
+            'top-right': '┐',
+            'bottom': '─',
+            'bottom-mid': '┴',
+            'bottom-left': '└',
+            'bottom-right': '┘',
+            'left': '│',
+            'left-mid': '├',
+            'mid': '─',
+            'mid-mid': '┼',
+            'right': '│',
+            'right-mid': '┤',
+            'middle': '│'
+          }
         });
 
-        // Table footer
-        console.log(`${table.bottomLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(20)}${table.bottomRight}`);
+        // Add rows to the table
+        workspaces.forEach(w => {
+          table.push([
+            theme.primary(w.name),
+            theme.info(w.slug)
+          ]);
+        });
+
+        console.log(table.toString());
       } catch (error: any) {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
-          console.error(theme.error('Authentication failed. Please run "nile auth login" first'));
+          console.error(theme.error('Authentication failed. Please run "nile connect login" first'));
         } else {
-          console.error(theme.error('Failed to list workspaces:'), error.message || error);
+          const options = getOptions();
+          if (options.debug) {
+            console.error(theme.error('Failed to list workspaces:'), error);
+          } else {
+            console.error(theme.error('Failed to list workspaces:'), error.message || 'Unknown error');
+          }
         }
         process.exit(1);
       }
@@ -115,10 +143,43 @@ ${getGlobalOptionsHelp()}`);
         }
 
         console.log(theme.primary('\nCurrent workspace:'));
-        console.log(`${theme.secondary('Name:')}  ${theme.primary(workspace.name)}`);
-        console.log(`${theme.secondary('Slug:')}  ${theme.info(workspace.slug)}`);
+        const detailsTable = new Table({
+          style: {
+            head: [],
+            border: [],
+          },
+          chars: {
+            'top': '─',
+            'top-mid': '┬',
+            'top-left': '┌',
+            'top-right': '┐',
+            'bottom': '─',
+            'bottom-mid': '┴',
+            'bottom-left': '└',
+            'bottom-right': '┘',
+            'left': '│',
+            'left-mid': '├',
+            'mid': '─',
+            'mid-mid': '┼',
+            'right': '│',
+            'right-mid': '┤',
+            'middle': '│'
+          }
+        });
+
+        detailsTable.push(
+          [theme.secondary('Name:'), theme.primary(workspace.name)],
+          [theme.secondary('Slug:'), theme.info(workspace.slug)]
+        );
+
+        console.log(detailsTable.toString());
       } catch (error: any) {
-        console.error(theme.error('Failed to get workspace:'), error.message || error);
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to get workspace:'), error);
+        } else {
+          console.error(theme.error('Failed to get workspace:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
