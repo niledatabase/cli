@@ -1,3 +1,10 @@
+## [1.0.8](https://github.com/niledatabase/cli/compare/v1.0.7...v1.0.8) (2025-02-06)
+
+
+### Bug Fixes
+
+* -tag properly ([e22b6a2](https://github.com/niledatabase/cli/commit/e22b6a25ec98b976db04cd9e1a11f41f371bfa99))
+
 ## [1.0.7](https://github.com/niledatabase/cli/compare/v1.0.6...v1.0.7) (2025-02-06)
 
 
