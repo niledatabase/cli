@@ -1,6 +1,6 @@
 {
   "name": "niledatabase",
-  "version": "1.0.8",
+  "version": "1.0.9-alpha.3",
   "description": "Command line interface for Nile databases",
   "main": "dist/index.js",
   "bin": {
@@ -36,11 +36,11 @@
   "release": {
     "branches": [
       {
-        "name": "main",
+        "name": "alpha",
         "prerelease": true
       },
       {
-        "name": "stable"
+        "name": "main"
       }
     ],
     "plugins": [

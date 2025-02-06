@@ -3,7 +3,7 @@ name: Publish CLI Prerelease
 on:
   push:
     branches:
-      - main
+      - alpha
 
 jobs:
   release:
