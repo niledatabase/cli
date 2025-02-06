@@ -37,7 +37,7 @@
     "branches": [
       {
         "name": "main",
-        "prerelease": "alpha"
+        "prerelease": true
       },
       {
         "name": "stable"
