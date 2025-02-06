@@ -37,43 +37,20 @@
     "branches": [
       {
         "name": "main",
-        "prerelease": "alpha",
-        "channel": "alpha",
-        "range": "1.0.0"
+        "prerelease": "alpha"
       },
       {
-        "name": "stable",
-        "channel": "latest"
+        "name": "stable"
       }
     ],
     "plugins": [
-      ["@semantic-release/commit-analyzer", {
-        "preset": "angular",
-        "releaseRules": [
-          {"type": "docs", "release": "patch"},
-          {"type": "fix", "release": "patch"},
-          {"type": "feat", "release": "minor"},
-          {"type": "perf", "release": "patch"}
-        ]
-      }],
+      "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
-      [
-        "@semantic-release/npm",
-        {
-          "npmPublish": true,
-          "pkgRoot": ".",
-          "tag": "alpha",
-          "registries": {
-            "npmjs": {
-              "url": "https://registry.npmjs.org/"
-            },
-            "github": {
-              "url": "https://npm.pkg.github.com/"
-            }
-          }
-        }
-      ],
+      ["@semantic-release/npm", {
+        "npmPublish": true,
+        "pkgRoot": "."
+      }],
       "@semantic-release/git"
     ]
   },
