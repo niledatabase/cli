@@ -71,16 +71,19 @@ jobs:
           git fetch origin alpha
           git checkout alpha
           
+          # Install dependencies to ensure package-lock.json is present
+          npm install
+          
           # Increment minor version and add alpha suffix
           MAJOR_MINOR=$(echo $MAIN_VERSION | cut -d. -f1,2)
           PATCH=$(echo $MAIN_VERSION | cut -d. -f3)
           NEW_MINOR=$(($(echo $MAJOR_MINOR | cut -d. -f2) + 1))
           NEW_VERSION="$(echo $MAJOR_MINOR | cut -d. -f1).$NEW_MINOR.0-alpha.1"
           
-          # Update package.json with new version
+          # Update package.json and package-lock.json with new version
           npm version $NEW_VERSION --no-git-tag-version
           
           # Commit and push changes
-          git add package.json
+          git add package.json package-lock.json
           git commit -m "chore: bump version to $NEW_VERSION for future alpha releases [skip ci]"
           git push origin alpha
