@@ -36,11 +36,11 @@
   "release": {
     "branches": [
       {
-        "name": "main",
+        "name": "alpha",
         "prerelease": true
       },
       {
-        "name": "stable"
+        "name": "main"
       }
     ],
     "plugins": [
