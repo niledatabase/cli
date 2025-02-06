@@ -1,6 +1,6 @@
 {
   "name": "niledatabase",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Command line interface for Nile databases",
   "main": "dist/index.js",
   "bin": {
@@ -47,15 +47,30 @@
       }
     ],
     "plugins": [
-      ["@semantic-release/commit-analyzer", {
-        "preset": "angular",
-        "releaseRules": [
-          {"type": "docs", "release": "patch"},
-          {"type": "fix", "release": "patch"},
-          {"type": "feat", "release": "minor"},
-          {"type": "perf", "release": "patch"}
-        ]
-      }],
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "preset": "angular",
+          "releaseRules": [
+            {
+              "type": "docs",
+              "release": "patch"
+            },
+            {
+              "type": "fix",
+              "release": "patch"
+            },
+            {
+              "type": "feat",
+              "release": "minor"
+            },
+            {
+              "type": "perf",
+              "release": "patch"
+            }
+          ]
+        }
+      ],
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
       [
