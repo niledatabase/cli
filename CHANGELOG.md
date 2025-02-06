@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/niledatabase/cli/compare/v1.0.0...v1.0.1) (2025-02-06)
+
+
+### Bug Fixes
+
+* add more tenant commands to the help argument ([c34a608](https://github.com/niledatabase/cli/commit/c34a6086561ff45ba18ab0d37f4dbeca902b683d))
+
 # 1.0.0 (2025-02-06)
 
 
