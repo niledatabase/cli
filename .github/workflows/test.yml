@@ -19,9 +19,25 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Debug environment
+        run: |
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Package lock before install:"
+          cat package-lock.json | md5sum
+          echo "Current directory contents:"
+          ls -la
+          echo "NPM config:"
+          npm config list
+
       - name: Install dependencies
         run: |
-          npm install
+          npm install --verbose --foreground-scripts
+          echo "Package lock after install:"
+          cat package-lock.json | md5sum
+          echo "Checking for changes:"
+          git status
+          git diff package-lock.json
           git diff --exit-code package-lock.json || (echo "Error: package-lock.json was modified by npm install. Please commit the updated package-lock.json" && exit 1)
 
       - name: Build
