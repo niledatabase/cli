@@ -1,3 +1,14 @@
+## [1.0.10-alpha.2](https://github.com/niledatabase/cli/compare/v1.0.10-alpha.1...v1.0.10-alpha.2) (2025-02-07)
+
+
+### Bug Fixes
+
+* fix package-lock ([436303b](https://github.com/niledatabase/cli/commit/436303b5eee3ae33a6733d5801978356ddaad922))
+* table format, stack trace on debug mode ([b5cb0d4](https://github.com/niledatabase/cli/commit/b5cb0d4b01afed59ffb562c9a673e99404d2edba))
+* try creating new ([6dd6b9b](https://github.com/niledatabase/cli/commit/6dd6b9b5a105e14d96da635fa4471777d745efee))
+* try fixing test failure ([123e2b6](https://github.com/niledatabase/cli/commit/123e2b6161078417847553baf937d9b1f5320d74))
+* update test ([20551ec](https://github.com/niledatabase/cli/commit/20551ec2f246e3fea3247b2c23e27cedfaa6fabe))
+
 ## [1.0.10-alpha.1](https://github.com/niledatabase/cli/compare/v1.0.9...v1.0.10-alpha.1) (2025-02-06)
 
 
