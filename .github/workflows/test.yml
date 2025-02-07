@@ -32,6 +32,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          rm -f package-lock.json
           npm install --verbose --foreground-scripts
           echo "Package lock after install:"
           cat package-lock.json | md5sum
