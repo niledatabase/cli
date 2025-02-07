@@ -4,6 +4,7 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
+import Table from 'cli-table3';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
     const configManager = new ConfigManager(options);
@@ -139,13 +140,49 @@ Examples:
           }
 
           console.log('\nTenants:');
-          tenants.forEach(tenant => {
-            console.log(`${theme.dim('ID:')} ${tenant.id}`);
-            console.log(`${theme.dim('Name:')} ${tenant.name || '(unnamed)'}`);
-            console.log();
+          const tenantsTable = new Table({
+            head: [
+              theme.header('ID'),
+              theme.header('NAME')
+            ],
+            style: {
+              head: [],
+              border: [],
+            },
+            chars: {
+              'top': '─',
+              'top-mid': '┬',
+              'top-left': '┌',
+              'top-right': '┐',
+              'bottom': '─',
+              'bottom-mid': '┴',
+              'bottom-left': '└',
+              'bottom-right': '┘',
+              'left': '│',
+              'left-mid': '├',
+              'mid': '─',
+              'mid-mid': '┼',
+              'right': '│',
+              'right-mid': '┤',
+              'middle': '│'
+            }
           });
+
+          tenants.forEach(tenant => {
+            tenantsTable.push([
+              theme.primary(tenant.id),
+              theme.info(tenant.name || '(unnamed)')
+            ]);
+          });
+
+          console.log(tenantsTable.toString());
         } catch (error: any) {
-          console.error(theme.error('Failed to list tenants:'), error.message || error);
+          const options = getGlobalOptions();
+          if (options.debug) {
+            console.error(theme.error('Failed to list tenants:'), error);
+          } else {
+            console.error(theme.error('Failed to list tenants:'), error.message || 'Unknown error');
+          }
           process.exit(1);
         } finally {
           if (client) {
@@ -192,10 +229,43 @@ Examples:
           
           const tenant = result.rows[0];
           console.log('\nTenant created:');
-          console.log(`${theme.dim('ID:')} ${tenant.id}`);
-          console.log(`${theme.dim('Name:')} ${tenant.name}`);
+          const detailsTable = new Table({
+            style: {
+              head: [],
+              border: [],
+            },
+            chars: {
+              'top': '─',
+              'top-mid': '┬',
+              'top-left': '┌',
+              'top-right': '┐',
+              'bottom': '─',
+              'bottom-mid': '┴',
+              'bottom-left': '└',
+              'bottom-right': '┘',
+              'left': '│',
+              'left-mid': '├',
+              'mid': '─',
+              'mid-mid': '┼',
+              'right': '│',
+              'right-mid': '┤',
+              'middle': '│'
+            }
+          });
+
+          detailsTable.push(
+            [theme.secondary('ID:'), theme.primary(tenant.id)],
+            [theme.secondary('Name:'), theme.info(tenant.name)]
+          );
+
+          console.log(detailsTable.toString());
         } catch (error: any) {
-          console.error(theme.error('Failed to create tenant:'), error.message || error);
+          const options = getGlobalOptions();
+          if (options.debug) {
+            console.error(theme.error('Failed to create tenant:'), error);
+          } else {
+            console.error(theme.error('Failed to create tenant:'), error.message || 'Unknown error');
+          }
           process.exit(1);
         } finally {
           if (client) {
@@ -239,11 +309,12 @@ Examples:
           // Delete the tenant
           await client.query('DELETE FROM tenants WHERE id = $1', [cmdOptions.id]);
           console.log(theme.success(`\nTenant '${theme.bold(tenant.name)}' deleted successfully.`));
-        } catch (error) {
-          if (error instanceof Error) {
-            console.error(theme.error('\nFailed to delete tenant:'), error.message);
-          } else {
+        } catch (error: any) {
+          const options = getGlobalOptions();
+          if (options.debug) {
             console.error(theme.error('\nFailed to delete tenant:'), error);
+          } else {
+            console.error(theme.error('\nFailed to delete tenant:'), error instanceof Error ? error.message : 'Unknown error');
           }
           process.exit(1);
         } finally {
@@ -290,11 +361,12 @@ Examples:
           console.log(theme.primary('\nUpdated tenant details:'));
           console.log(`${theme.secondary('ID:')}   ${theme.primary(tenant.id)}`);
           console.log(`${theme.secondary('Name:')} ${theme.info(tenant.name)}`);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.error(theme.error('\nFailed to update tenant:'), error.message);
-          } else {
+        } catch (error: any) {
+          const options = getGlobalOptions();
+          if (options.debug) {
             console.error(theme.error('\nFailed to update tenant:'), error);
+          } else {
+            console.error(theme.error('\nFailed to update tenant:'), error instanceof Error ? error.message : 'Unknown error');
           }
           process.exit(1);
         } finally {
