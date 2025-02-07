@@ -1,6 +1,5 @@
 ## [1.0.10-alpha.2](https://github.com/niledatabase/cli/compare/v1.0.10-alpha.1...v1.0.10-alpha.2) (2025-02-07)
 
-
 ### Bug Fixes
 
 * fix package-lock ([436303b](https://github.com/niledatabase/cli/commit/436303b5eee3ae33a6733d5801978356ddaad922))
