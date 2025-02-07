@@ -4,6 +4,7 @@ import { NileAPI } from '../lib/api';
 import { theme, table, formatStatus, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { spawn } from 'child_process';
+import Table from 'cli-table3';
 
 type GetOptions = () => GlobalOptions;
 
@@ -61,26 +62,56 @@ ${getGlobalOptionsHelp()}`);
           return;
         }
 
-        // Create a nicely formatted table
+        // Create a nicely formatted table using cli-table3
         console.log(theme.primary(`\nDatabases in workspace '${theme.bold(workspaceSlug)}':`));
         
-        // Table header
-        const header = `${table.topLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(15)}${table.cross}${'─'.repeat(10)}${table.topRight}`;
-        console.log(header);
-        console.log(`${table.vertical}${theme.header(' NAME').padEnd(20)}${table.vertical}${theme.header(' REGION').padEnd(15)}${table.vertical}${theme.header(' STATUS').padEnd(10)}${table.vertical}`);
-        console.log(`${table.vertical}${theme.border('─'.repeat(19))}${table.vertical}${theme.border('─'.repeat(14))}${table.vertical}${theme.border('─'.repeat(9))}${table.vertical}`);
-
-        // Table rows
-        databases.forEach((db) => {
-          console.log(
-            `${table.vertical} ${theme.primary(db.name.padEnd(18))}${table.vertical} ${theme.info(db.region.padEnd(13))}${table.vertical} ${formatStatus(db.status).padEnd(8)}${table.vertical}`
-          );
+        const table = new Table({
+          head: [
+            theme.header('NAME'),
+            theme.header('REGION'),
+            theme.header('STATUS')
+          ],
+          style: {
+            head: [],  // Disable default styling
+            border: [], // Disable default styling
+          },
+          chars: {
+            'top': '─',
+            'top-mid': '┬',
+            'top-left': '┌',
+            'top-right': '┐',
+            'bottom': '─',
+            'bottom-mid': '┴',
+            'bottom-left': '└',
+            'bottom-right': '┘',
+            'left': '│',
+            'left-mid': '├',
+            'mid': '─',
+            'mid-mid': '┼',
+            'right': '│',
+            'right-mid': '┤',
+            'middle': '│'
+          }
         });
 
-        // Table footer
-        console.log(`${table.bottomLeft}${'─'.repeat(20)}${table.cross}${'─'.repeat(15)}${table.cross}${'─'.repeat(10)}${table.bottomRight}`);
-      } catch (error) {
-        console.error(theme.error('Failed to list databases:'), error);
+        // Add rows to the table
+        databases.forEach((db) => {
+          table.push([
+            theme.primary(db.name),
+            theme.info(db.region),
+            formatStatus(db.status)
+          ]);
+        });
+
+        // Print the table
+        console.log(table.toString());
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to list databases:'), error);
+        } else {
+          console.error(theme.error('Failed to list databases:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
@@ -132,11 +163,44 @@ ${getGlobalOptionsHelp()}`);
         }
 
         console.log(theme.primary('\nDatabase details:'));
-        console.log(`${theme.secondary('Name:')}    ${theme.primary(database.name)}`);
-        console.log(`${theme.secondary('Region:')}  ${theme.info(database.region)}`);
-        console.log(`${theme.secondary('Status:')}  ${formatStatus(database.status)}`);
-      } catch (error) {
-        console.error(theme.error('Failed to get database:'), error);
+        const detailsTable = new Table({
+          style: {
+            head: [],
+            border: [],
+          },
+          chars: {
+            'top': '─',
+            'top-mid': '┬',
+            'top-left': '┌',
+            'top-right': '┐',
+            'bottom': '─',
+            'bottom-mid': '┴',
+            'bottom-left': '└',
+            'bottom-right': '┘',
+            'left': '│',
+            'left-mid': '├',
+            'mid': '─',
+            'mid-mid': '┼',
+            'right': '│',
+            'right-mid': '┤',
+            'middle': '│'
+          }
+        });
+
+        detailsTable.push(
+          [theme.secondary('Name:'), theme.primary(database.name)],
+          [theme.secondary('Region:'), theme.info(database.region)],
+          [theme.secondary('Status:'), formatStatus(database.status)]
+        );
+
+        console.log(detailsTable.toString());
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to get database:'), error);
+        } else {
+          console.error(theme.error('Failed to get database:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
@@ -169,7 +233,36 @@ ${getGlobalOptionsHelp()}`);
         if (!cmdOptions.region) {
           const regions = await api.listRegions(workspaceSlug);
           console.log(theme.primary('\nAvailable regions:'));
-          regions.forEach(region => console.log(theme.info(`- ${region}`)));
+          const regionsTable = new Table({
+            head: [theme.header('REGION')],
+            style: {
+              head: [],
+              border: [],
+            },
+            chars: {
+              'top': '─',
+              'top-mid': '┬',
+              'top-left': '┌',
+              'top-right': '┐',
+              'bottom': '─',
+              'bottom-mid': '┴',
+              'bottom-left': '└',
+              'bottom-right': '┘',
+              'left': '│',
+              'left-mid': '├',
+              'mid': '─',
+              'mid-mid': '┼',
+              'right': '│',
+              'right-mid': '┤',
+              'middle': '│'
+            }
+          });
+
+          regions.forEach(region => {
+            regionsTable.push([theme.info(region)]);
+          });
+
+          console.log(regionsTable.toString());
           console.log(theme.secondary('\nPlease specify a region using --region flag'));
           process.exit(1);
         }
@@ -184,10 +277,15 @@ ${getGlobalOptionsHelp()}`);
         console.log(`${theme.secondary('Region:')}  ${theme.info(database.region)}`);
         console.log(`${theme.secondary('Status:')}  ${formatStatus(database.status)}`);
       } catch (error: any) {
+        const options = getOptions();
         if (error.response?.data?.errors) {
           console.error(theme.error('Failed to create database:'), new Error(error.response.data.errors.join(', ')));
         } else {
-          console.error(theme.error('Failed to create database:'), error instanceof Error ? error : new Error(error.message || error));
+          if (options.debug) {
+            console.error(theme.error('Failed to create database:'), error);
+          } else {
+            console.error(theme.error('Failed to create database:'), error instanceof Error ? error.message : 'Unknown error');
+          }
         }
         process.exit(1);
       }
@@ -247,8 +345,13 @@ ${getGlobalOptionsHelp()}`);
         console.log(theme.primary(`\nDeleting database '${theme.bold(databaseName)}'...`));
         await api.deleteDatabase(workspaceSlug, databaseName);
         console.log(theme.success('Database deleted successfully.'));
-      } catch (error) {
-        console.error(theme.error('Failed to delete database:'), error);
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to delete database:'), error);
+        } else {
+          console.error(theme.error('Failed to delete database:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
@@ -293,9 +396,43 @@ ${getGlobalOptionsHelp()}`);
         }
 
         console.log(theme.primary('\nAvailable regions:'));
-        regions.forEach(region => console.log(theme.info(`- ${region}`)));
-      } catch (error) {
-        console.error(theme.error('Failed to list regions:'), error);
+        const regionsTable = new Table({
+          head: [theme.header('REGION')],
+          style: {
+            head: [],
+            border: [],
+          },
+          chars: {
+            'top': '─',
+            'top-mid': '┬',
+            'top-left': '┌',
+            'top-right': '┐',
+            'bottom': '─',
+            'bottom-mid': '┴',
+            'bottom-left': '└',
+            'bottom-right': '┘',
+            'left': '│',
+            'left-mid': '├',
+            'mid': '─',
+            'mid-mid': '┼',
+            'right': '│',
+            'right-mid': '┤',
+            'middle': '│'
+          }
+        });
+
+        regions.forEach(region => {
+          regionsTable.push([theme.info(region)]);
+        });
+
+        console.log(regionsTable.toString());
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to list regions:'), error);
+        } else {
+          console.error(theme.error('Failed to list regions:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
@@ -347,11 +484,16 @@ ${getGlobalOptionsHelp()}`);
         });
 
         psql.on('error', (error: any) => {
+          const options = getOptions();
           if (error.code === 'ENOENT') {
             console.error(theme.error('\nError: psql command not found. Please install PostgreSQL client tools.'));
             process.exit(1);
           } else {
-            console.error(theme.error('\nError executing psql:'), error);
+            if (options.debug) {
+              console.error(theme.error('\nError executing psql:'), error);
+            } else {
+              console.error(theme.error('\nError executing psql:'), error.message || 'Unknown error');
+            }
             process.exit(1);
           }
         });
@@ -362,8 +504,13 @@ ${getGlobalOptionsHelp()}`);
             process.exit(code);
           }
         });
-      } catch (error) {
-        console.error(theme.error('Failed to connect to database:'), error);
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to connect to database:'), error);
+        } else {
+          console.error(theme.error('Failed to connect to database:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });
@@ -412,8 +559,13 @@ ${getGlobalOptionsHelp()}`);
 
         // Output the connection string
         console.log(connectionString);
-      } catch (error) {
-        console.error(theme.error('Failed to get connection string:'), error);
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('Failed to get connection string:'), error);
+        } else {
+          console.error(theme.error('Failed to get connection string:'), error.message || 'Unknown error');
+        }
         process.exit(1);
       }
     });

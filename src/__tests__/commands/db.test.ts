@@ -45,6 +45,14 @@ describe('DB Command', () => {
     jest.spyOn(console, 'error').mockImplementation(() => true);
     jest.clearAllMocks();
 
+    // Setup global options with debug mode off by default
+    globalOptions = {
+      workspace: 'test-workspace',
+      db: 'test-db',
+      debug: false,
+      format: undefined
+    };
+
     // Mock process.exit
     mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
       throw new ProcessExitError(code);
@@ -74,14 +82,6 @@ describe('DB Command', () => {
 
     // Get the mock spawn function
     mockSpawn = jest.requireMock('child_process').spawn;
-
-    // Setup global options
-    globalOptions = {
-      workspace: 'test-workspace',
-      db: 'test-db',
-      debug: false,
-      format: undefined
-    };
 
     // Setup program
     program = new Command();
@@ -125,7 +125,7 @@ describe('DB Command', () => {
         expect(e).toBeInstanceOf(ProcessExitError);
         expect(console.error).toHaveBeenCalledWith(
           theme.error('Failed to list databases:'),
-          error
+          'API Error'
         );
       }
     });
@@ -207,7 +207,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to create database:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to create database:'), 'API error');
     });
   });
 
@@ -277,8 +277,11 @@ describe('DB Command', () => {
       }
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), expect.any(Error));
-      expect(actualError.message).toContain('No database specified');
+      expect(console.error).toHaveBeenCalledWith(
+        theme.error('Failed to delete database:'),
+        expect.stringContaining('No database specified')
+      );
+      expect(actualError).toContain('No database specified');
     });
 
     it('should handle API errors', async () => {
@@ -290,7 +293,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), 'API error');
     });
   });
 
@@ -302,9 +305,8 @@ describe('DB Command', () => {
 
       expect(mockNileAPI.listRegions).toHaveBeenCalledWith('test-workspace');
       expect(console.log).toHaveBeenCalledWith(theme.primary('\nAvailable regions:'));
-      ['AWS_US_WEST_2', 'AWS_US_EAST_1'].forEach(region => {
-        expect(console.log).toHaveBeenCalledWith(theme.info(`- ${region}`));
-      });
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('AWS_US_WEST_2'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('AWS_US_EAST_1'));
     });
 
     it('should output in JSON format', async () => {
@@ -336,7 +338,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to list regions:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to list regions:'), 'API error');
     });
   });
 
@@ -391,8 +393,11 @@ describe('DB Command', () => {
       }
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), expect.any(Error));
-      expect(actualError.message).toContain('No database specified');
+      expect(console.error).toHaveBeenCalledWith(
+        theme.error('Failed to get connection string:'),
+        expect.stringContaining('No database specified')
+      );
+      expect(actualError).toContain('No database specified');
     });
 
     it('should require --psql flag', async () => {
@@ -420,8 +425,11 @@ describe('DB Command', () => {
       }
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), expect.any(Error));
-      expect(actualError.message).toContain('No workspace specified');
+      expect(console.error).toHaveBeenCalledWith(
+        theme.error('Failed to get connection string:'),
+        expect.stringContaining('No workspace specified')
+      );
+      expect(actualError).toContain('No workspace specified');
     });
 
     it('should handle API errors', async () => {
@@ -433,7 +441,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), new Error('API error'));
+      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), 'API error');
     });
   });
 }); 
