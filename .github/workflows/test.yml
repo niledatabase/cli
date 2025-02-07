@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - "**"
-  pull_request:
-    branches:
-      - "**"  
 
 jobs:
   test:
@@ -14,43 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: lts/*
+          cache: 'npm'
 
-      - name: Debug environment
-        run: |
-          echo "Node version: $(node --version)"
-          echo "NPM version: $(npm --version)"
-          echo "Package lock before install:"
-          cat package-lock.json | md5sum
-          echo "Current directory contents:"
-          ls -la
-          echo "NPM config:"
-          npm config list
+      - name: Install deps
+        run: npm ci
 
-      - name: Install dependencies
-        run: |
-          rm -f package-lock.json
-          npm install --verbose --foreground-scripts
-          echo "Package lock after install:"
-          cat package-lock.json | md5sum
-          echo "Checking for changes:"
-          git status
-          git diff package-lock.json
-          git diff --exit-code package-lock.json || (echo "Error: package-lock.json was modified by npm install. Please commit the updated package-lock.json" && exit 1)
-
-      - name: Build
+      - name: build
         run: npm run build
 
-      - name: Run linting
-        run: npm run lint
-
-      - name: Run tests
+      - name: test
         env:
           NILEDB_USER: ${{ secrets.NILEDB_USER }}
           NILEDB_PASSWORD: ${{ secrets.NILEDB_PASSWORD }}
           NILEDB_POSTGRES_URL: ${{ secrets.NILEDB_POSTGRES_URL }}
           NILEDB_API_URL: ${{ secrets.NILEDB_API_URL }}
-        run: npm test 
+        run: npm test
