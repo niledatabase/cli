@@ -123,6 +123,11 @@ nile config --api-key <key>         # Set API key
 nile config --workspace <name>       # Set workspace
 nile config --db <name>             # Set database
 nile config reset                   # Reset configuration
+
+# Authentication Commands
+nile auth quickstart --nextjs    # Add Multi-tenant Authentication in 2 minutes
+nile auth env                    # Generate environment variables for authentication
+nile auth env --output .env.local # Save environment variables to a file
 ```
 
 ### Global Options
@@ -427,3 +432,57 @@ nile connect status
 ## License
 
 MIT
+
+## Local Development Environment
+
+The `nile local` commands help you set up and manage a local development environment:
+
+### Starting the Environment
+
+```bash
+# Start the environment (with interactive prompt for psql)
+nile local start
+
+# Start without prompting for psql connection
+nile local start --no-prompt
+```
+
+### Managing Connections
+
+```bash
+# Show connection information
+nile local info
+
+# Connect to database using psql
+nile local connect --psql
+
+# Stop the environment
+nile local stop
+```
+
+### Connection Details
+When running locally, these credentials are used:
+- Host: localhost
+- Port: 5432
+- Database: test
+- Username: 00000000-0000-0000-0000-000000000000
+- Password: password
+
+## Authentication Setup
+
+The `nile auth` commands help you set up authentication in your application:
+
+### Quick Start
+```bash
+# Add authentication to a Next.js application
+nile auth quickstart --nextjs
+```
+
+### Environment Variables
+```bash
+# Generate and display environment variables
+nile auth env
+
+# Save environment variables to a file
+nile auth env --output .env.local
+```
