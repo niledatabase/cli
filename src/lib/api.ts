@@ -34,12 +34,44 @@ export interface Workspace {
   created?: string;
 }
 
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  name?: string;
+  givenName?: string;
+  familyName?: string;
+  picture?: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  givenName?: string;
+  familyName?: string;
+  picture?: string;
+  emailVerified?: string;
+  created: string;
+  updated: string;
+  tenants?: string[];
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  givenName?: string;
+  familyName?: string;
+  picture?: string;
+}
+
 export class NileAPI {
   private controlPlaneClient: AxiosInstance;
+  private userClient: AxiosInstance;
   private static DEFAULT_CONTROL_PLANE_URL = 'https://global.thenile.dev';
+  private static DEFAULT_USER_URL = 'https://us-west-2.api.thenile.dev';
   private debug: boolean;
   private token: string;
   private controlPlaneUrl: string;
+  private userUrl: string;
   private dbHost?: string;
 
   constructor(options: NileAPIOptions) {
@@ -59,9 +91,13 @@ export class NileAPI {
       this.controlPlaneUrl = NileAPI.DEFAULT_CONTROL_PLANE_URL;
     }
 
+    // Set user URL
+    this.userUrl = NileAPI.DEFAULT_USER_URL;
+
     if (this.debug) {
       console.log(theme.dim('\nAPI Configuration:'));
       console.log(theme.dim('Control Plane URL:'), this.controlPlaneUrl);
+      console.log(theme.dim('User API URL:'), this.userUrl);
       console.log();
     }
 
@@ -74,8 +110,18 @@ export class NileAPI {
       },
     });
 
+    // Create user client for user operations
+    this.userClient = axios.create({
+      baseURL: this.userUrl,
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+
     // Add debug logging
     this.addDebugLogging(this.controlPlaneClient);
+    this.addDebugLogging(this.userClient);
 
     this.dbHost = options.dbHost;
   }
@@ -206,5 +252,46 @@ export class NileAPI {
   async getWorkspace(workspaceSlug: string): Promise<Workspace> {
     const response = await this.controlPlaneClient.get(`/workspaces/${workspaceSlug}`);
     return response.data;
+  }
+
+  async getDatabaseId(workspaceSlug: string, databaseName: string): Promise<string> {
+    const database = await this.getDatabase(workspaceSlug, databaseName);
+    if (!database.id) {
+      throw new Error(`Could not find database ID for database '${databaseName}'`);
+    }
+    return database.id;
+  }
+
+  async createUser(databaseId: string, user: CreateUserRequest, options?: { tenantId?: string; newTenantName?: string }): Promise<User> {
+    const response = await this.userClient.post(
+      `/v2/databases/${databaseId}/users`,
+      user,
+      {
+        params: {
+          tenantId: options?.tenantId,
+          newTenantName: options?.newTenantName
+        }
+      }
+    );
+    return response.data;
+  }
+
+  async getUserTenants(databaseId: string, userId: string): Promise<Tenant[]> {
+    const response = await this.userClient.get(`/v2/databases/${databaseId}/users/${userId}/tenants`);
+    return response.data;
+  }
+
+  async updateUser(databaseId: string, userId: string, updates: UpdateUserRequest): Promise<User> {
+    const response = await this.userClient.patch(
+      `/v2/databases/${databaseId}/users/${userId}`,
+      updates
+    );
+    return response.data;
+  }
+
+  async removeUserFromTenant(databaseId: string, userId: string, tenantId: string): Promise<void> {
+    await this.userClient.delete(
+      `/v2/databases/${databaseId}/users/${userId}/tenants/${tenantId}`
+    );
   }
 } 

@@ -6,6 +6,7 @@ export interface Workspace {
 }
 
 export interface Database {
+  id: string;
   name: string;
   region: string;
   status: string;
