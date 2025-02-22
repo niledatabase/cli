@@ -41,8 +41,65 @@ export function createAuthCommand(getOptions: GetOptions): Command {
     .addHelpText('after', `
 Examples:
   ${formatCommand('nile auth quickstart --nextjs')}     Create a Next.js app with Nile auth
+  ${formatCommand('nile auth env')}                     Generate Nile environment variables
   
 ${getGlobalOptionsHelp()}`);
+
+  auth
+    .command('env')
+    .description('Generate Nile environment variables')
+    .option('--output <file>', 'Output to a file (e.g. .env.local)')
+    .action(async (cmdOptions) => {
+      try {
+        const step = ora({
+          text: 'Fetching credentials from Nile...',
+          color: 'yellow'
+        }).start();
+
+        try {
+          const options = getOptions();
+          const configManager = new ConfigManager(options);
+          const api = new NileAPI({
+            token: configManager.getToken(),
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
+          });
+
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          const credentials = await api.createDatabaseCredentials(workspaceSlug, databaseName);
+          const database = await api.getDatabase(workspaceSlug, databaseName);
+          
+          step.succeed('Received credentials from Nile database');
+          await sleep(300);
+
+          const envContent = `NILEDB_USER=${credentials.id}
+NILEDB_PASSWORD=${credentials.password}
+NILEDB_API_URL=https://us-west-2.api.thenile.dev/v2/databases/${database.id}
+NILEDB_POSTGRES_URL=postgres://us-west-2.db.thenile.dev:5432/${databaseName}`;
+
+          if (cmdOptions.output) {
+            await fs.writeFile(cmdOptions.output, envContent);
+            console.log(styles.success(`\n✓ Environment variables written to ${cmdOptions.output}`));
+          } else {
+            console.log(styles.info('\nNile Environment Variables:'));
+            console.log(styles.info('```env'));
+            console.log(envContent);
+            console.log(styles.info('```'));
+            console.log(styles.info('\nTo save these variables to a file, use --output flag:'));
+            console.log(styles.command('nile auth env --output .env.local'));
+          }
+        } catch (error: any) {
+          step.fail('Failed to generate environment variables');
+          if (getOptions().debug) {
+            console.error(theme.error('Error details:'), error.message);
+          }
+          process.exit(1);
+        }
+      } catch (error: any) {
+        console.error(theme.error('\nFailed to generate environment variables:'), error.message || 'Unknown error');
+        process.exit(1);
+      }
+    });
 
   auth
     .command('quickstart')

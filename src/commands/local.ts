@@ -43,7 +43,8 @@ Examples:
   ${formatCommand('nile local start', '--no-prompt')} Start without prompting for psql connection
   ${formatCommand('nile local stop')}                 Stop local development environment
   ${formatCommand('nile local info')}                 Show connection information
-
+  ${formatCommand('nile local connect --psql')}       Connect to local database using psql
+  
 ${getGlobalOptionsHelp()}`);
 
   local
@@ -309,6 +310,87 @@ ${getGlobalOptionsHelp()}`);
           await execAsync('docker stop nile-local && docker rm nile-local');
         } catch (cleanupError) {
           // Ignore cleanup errors
+        }
+        process.exit(1);
+      }
+    });
+
+  local
+    .command('connect')
+    .description('Connect to local database')
+    .requiredOption('--psql', 'Connect using PostgreSQL CLI')
+    .action(async (cmdOptions) => {
+      try {
+        // Check if container is running
+        const { stdout } = await execAsync('docker ps --filter name=nile-local --format {{.Names}}');
+        if (!stdout.includes('nile-local')) {
+          console.error(theme.error('\nNo Nile local environment is currently running.'));
+          console.log(theme.dim('Start it with: nile local start'));
+          process.exit(1);
+        }
+
+        const connectSpinner = ora({
+          text: 'Connecting to local database...',
+          color: 'cyan'
+        }).start();
+
+        try {
+          // Add a delay to ensure the database is ready for connections
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Connect using psql with individual parameters
+          const psql = spawn('psql', [
+            '-h', 'localhost',
+            '-p', '5432',
+            '-U', '00000000-0000-0000-0000-000000000000',
+            '-d', 'test',
+            '-w'  // Never prompt for password
+          ], {
+            stdio: 'inherit',
+            env: {
+              ...process.env,
+              PGPASSWORD: 'password'  // Set password via environment variable
+            }
+          });
+
+          // Stop the spinner immediately as psql will take over the terminal
+          connectSpinner.stop();
+
+          // Handle psql exit
+          psql.on('exit', (code) => {
+            if (code !== 0) {
+              console.error(theme.error('\nFailed to connect using psql. Please check if psql is installed.'));
+              if (getOptions().debug) {
+                console.error(theme.dim('Try connecting directly with:'));
+                console.error(theme.dim('PGPASSWORD=password psql -h localhost -p 5432 -U 00000000-0000-0000-0000-000000000000 -d test'));
+              }
+              process.exit(1);
+            }
+          });
+
+          // Handle psql error
+          psql.on('error', (error) => {
+            connectSpinner.fail('Failed to launch psql');
+            console.error(theme.error('\nError launching psql:'), error.message);
+            if (error.message.includes('ENOENT')) {
+              console.error(theme.error('Please make sure psql is installed and available in your PATH'));
+            }
+            process.exit(1);
+          });
+
+        } catch (error: any) {
+          connectSpinner.fail('Failed to connect to database');
+          if (getOptions().debug) {
+            console.error(theme.error('Error details:'), error.message);
+          }
+          process.exit(1);
+        }
+      } catch (error: any) {
+        const options = getOptions();
+        if (options.debug) {
+          console.error(theme.error('\nFailed to connect to database:'), error);
+        } else {
+          console.error(theme.error('\nFailed to connect to database:'), error.message || 'Unknown error');
         }
         process.exit(1);
       }
