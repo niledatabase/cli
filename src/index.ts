@@ -7,9 +7,10 @@ import { createDbCommand } from './commands/db';
 import { createTenantsCommand } from './commands/tenants';
 import { configCommand } from './commands/config';
 import { addGlobalOptions, updateChalkConfig } from './lib/globalOptions';
+import { version } from '../package.json';
 
 const cli = new Command()
-  .version('0.1.0')
+  .version(version)
   .description('Nile CLI')
   .addHelpText('after', `
 Examples:
