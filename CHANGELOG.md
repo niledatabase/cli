@@ -1,3 +1,11 @@
+# [1.1.0-alpha.1](https://github.com/niledatabase/cli/compare/v1.0.11-alpha.1...v1.1.0-alpha.1) (2025-02-22)
+
+
+### Features
+
+* new features for local dev ([f542d3d](https://github.com/niledatabase/cli/commit/f542d3dfeccfaef051f2f9652ef8c986794c8356))
+* new features for local dev ([5758a5f](https://github.com/niledatabase/cli/commit/5758a5f2fcbbd49dcfd9bd3a0778ce223729d0bf))
+
 ## [1.0.11-alpha.1](https://github.com/niledatabase/cli/compare/v1.0.10...v1.0.11-alpha.1) (2025-02-07)
 
 
