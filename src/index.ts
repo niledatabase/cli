@@ -9,14 +9,10 @@ import { configCommand } from './commands/config';
 import { createUsersCommand } from './commands/user';
 import { createLocalCommand } from './commands/local';
 import { addGlobalOptions, updateChalkConfig } from './lib/globalOptions';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-// Read version from package.json
-const packageJson = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
+import { version } from '../package.json';
 
 const cli = new Command()
-  .version(packageJson.version)
+  .version(version)
   .description('Nile CLI')
   .addHelpText('after', `
 Examples:
