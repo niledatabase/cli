@@ -1,3 +1,21 @@
+<p align="center">
+ <a href="https://thenile.dev" target="_blank"><img width="96px" src="https://www.thenile.dev/about-logo.png" /></a>
+ <h2 align="center">Nile CLI
+  <br/>
+  <img src="https://img.shields.io/npm/v/@niledatabase/server"/>
+ </h2>
+ <p align="center">
+  <a href="https://thenile.dev/docs/cli"><strong>Learn more ↗️</strong></a>
+  <br />
+  <br />
+  <a href="https://discord.gg/akRKRPKA">Discord</a>
+  🔵
+  <a href="https://thenile.dev">Website</a>
+  🔵 
+  <a href="https://github.com/orgs/niledatabase/discussions">Issues</a>
+ </p>
+</p>
+
 # Nile CLI
 
 Command line interface for managing Nile databases. Easily create, manage, and monitor your Nile databases from the terminal.
