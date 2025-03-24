@@ -1,6 +1,26 @@
+<p align="center">
+ <a href="https://thenile.dev" target="_blank"><img width="96px" src="https://www.thenile.dev/about-logo.png" /></a>
+ <h2 align="center">Nile CLI
+  <br/>
+  <img src="https://img.shields.io/npm/v/@niledatabase/server"/>
+ </h2>
+ <p align="center">
+  <a href="https://thenile.dev/docs/cli"><strong>Learn more ↗️</strong></a>
+  <br />
+  <br />
+  <a href="https://discord.gg/akRKRPKA">Discord</a>
+  🔵
+  <a href="https://thenile.dev">Website</a>
+  🔵 
+  <a href="https://github.com/orgs/niledatabase/discussions">Issues</a>
+ </p>
+</p>
+
 # Nile CLI
 
 Command line interface for managing Nile databases. Easily create, manage, and monitor your Nile databases from the terminal.
+
+For detailed documentation, visit our [CLI Documentation](https://thenile.dev/docs/cli/introduction).
 
 ## Installation
 
@@ -78,20 +98,76 @@ nile --version
 ## Usage
 
 ```bash
-# Show help
+# Show help and version
 nile --help
+nile --version
 
-# List available commands
-nile help
+# Authentication
+nile connect login          # Login using browser-based authentication
+nile connect status        # Check connection status
+nile connect logout       # Clear stored credentials
 
-# Configure your workspace
-nile config --workspace <workspace-name>
+# Workspace Management
+nile workspace list       # List all workspaces
+nile workspace show      # Show current workspace details
+nile config --workspace <name>  # Set default workspace
 
-# List databases
+# Database Management
+nile db list            # List all databases
+nile db show <name>     # Show database details
+nile db create --name <name> --region <region>  # Create a new database
+nile db delete <name>   # Delete a database
+nile db psql           # Connect using PostgreSQL CLI
+
+# Tenant Management
+nile tenants list                    # List all tenants
+nile tenants create --name "Name"    # Create a tenant
+nile tenants update --id <id> --new_name "Name"  # Update tenant
+nile tenants delete --id <id>        # Delete tenant
+
+# User Management
+nile users create      # Create a new user
+nile users list       # List users
+nile users delete     # Delete a user
+
+# Local Development
+nile local start      # Start local development environment
+nile local stop       # Stop local environment
+nile local info       # Show connection information
+
+# Configuration
+nile config                          # Show current configuration
+nile config --api-key <key>         # Set API key
+nile config --workspace <name>       # Set workspace
+nile config --db <name>             # Set database
+nile config reset                   # Reset configuration
+```
+
+### Global Options
+
+These options work with all commands:
+
+```bash
+--api-key <key>      # API key for authentication
+--workspace <name>   # Workspace to use
+--db <name>         # Database to use
+--format <type>     # Output format: human (default), json, or csv
+--color            # Enable colored output (default: true)
+--no-color         # Disable colored output
+--debug            # Enable debug output
+```
+
+### Output Formats
+
+```bash
+# Human-readable (default)
 nile db list
 
-# Create a new database
-nile db create --name <db-name> --region <region>
+# JSON format
+nile --format json db list
+
+# CSV format
+nile --format csv db list
 ```
 
 ## Development Versions
