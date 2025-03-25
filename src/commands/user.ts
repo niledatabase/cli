@@ -4,7 +4,9 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
+import { handleUserError, forceRelogin } from '../lib/errorHandling';
 import Table from 'cli-table3';
+import axios from 'axios';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
   const configManager = new ConfigManager(options);
@@ -12,7 +14,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
   if (!workspaceSlug) {
     throw new Error('No workspace specified. Use one of:\n' +
       '1. --workspace flag\n' +
-      '2. nile config --workspace <name>\n' +
+      '2. nile config --workspace <n>\n' +
       '3. NILE_WORKSPACE environment variable');
   }
 
@@ -20,7 +22,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
   if (!databaseName) {
     throw new Error('No database specified. Use one of:\n' +
       '1. --db flag\n' +
-      '2. nile config --db <name>\n' +
+      '2. nile config --db <n>\n' +
       '3. NILE_DB environment variable');
   }
 
@@ -78,41 +80,135 @@ export class UsersCommand {
       .description('Manage users in your database')
       .addHelpText('after', `
 Examples:
-  # Create users
-  ${formatCommand('nile users create', '--email "user@example.com" --password "securepass123"')}     Create a basic user
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --name "John Doe"')}  Create user with name
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --given-name "John" --family-name "Doe"')}  Create user with full name
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --tenant-id "tenant123"')}  Create user in specific tenant
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --new-tenant-name "New Corp"')}  Create user with new tenant
+  # List users
+  ${formatCommand('nile users list')}                                List all users
+  ${formatCommand('nile users list', '--workspace myworkspace')}     List users in specific workspace
+  ${formatCommand('nile users list', '--db mydb')}                  List users in specific database
+  ${formatCommand('nile users list', '--format json')}              Output in JSON format
+  ${formatCommand('nile users list', '--format csv')}               Output in CSV format
 
-  # List user tenants
-  ${formatCommand('nile users tenants', '--user-id user123')}                List all tenants for a user
+  # Create users
+  ${formatCommand('nile users create', '--email "user@example.com" --password "password123"')}  Create user with email and password
+  ${formatCommand('nile users create', '--email "user@example.com" --password "password123" --tenant tenant-123')}  Create user in specific tenant
 
   # Update users
-  ${formatCommand('nile users update', '--user-id user123 --name "Updated Name"')}  Update user name
-  ${formatCommand('nile users update', '--user-id user123 --given-name "John" --family-name "Doe"')}  Update user full name
+  ${formatCommand('nile users update', '--id user-123 --new_email "new@example.com"')}     Update user email
+  ${formatCommand('nile users update', '--id user-123 --new_password "newpassword123"')}   Update user password
 
-  # Remove user from tenant
-  ${formatCommand('nile users remove-tenant', '--user-id user123 --tenant-id tenant123')}  Remove user from tenant
+  # Delete users
+  ${formatCommand('nile users delete', '--id user-123')}                       Delete user by ID
+  ${formatCommand('nile users delete', '--id 550e8400-e29b-41d4-a716-446655440000')}  Delete user by UUID
+
+  # Using with different output formats
+  ${formatCommand('nile users list', '--format json')}                     List users in JSON format
+  ${formatCommand('nile users list', '--format csv')}                      List users in CSV format
+  ${formatCommand('nile users create', '--email "user@example.com" --password "password123" --format json')}  Create user with JSON output
 
 ${getGlobalOptionsHelp()}`);
 
-    const createCmd = new Command('create')
-      .description('Create a new user')
-      .requiredOption('--email <email>', 'Email address for the user')
-      .requiredOption('--password <password>', 'Password for the user')
-      .option('--name <n>', 'Full name of the user')
-      .option('--given-name <n>', 'Given (first) name of the user')
-      .option('--family-name <n>', 'Family (last) name of the user')
-      .option('--picture <url>', 'URL of the user\'s profile picture')
-      .option('--tenant-id <id>', 'ID of the tenant to add the user to')
-      .option('--new-tenant-name <n>', 'Name of a new tenant to create and add the user to')
-      .option('--roles <roles...>', 'Roles to assign to the user in the tenant')
+    const listCmd = new Command('list')
+      .description('List all users in the database')
       .addHelpText('after', `
 Examples:
-  ${formatCommand('nile users create', '--email "user@example.com" --password "securepass123"')}
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --name "John Doe"')}
-  ${formatCommand('nile users create', '--email "user@example.com" --password "pass123" --tenant-id "tenant123"')}
+  ${formatCommand('nile users list')}                                List all users
+  ${formatCommand('nile users list', '--workspace myworkspace')}     List users in specific workspace
+  ${formatCommand('nile users list', '--db mydb')}                  List users in specific database
+      `)
+      .action(async () => {
+        let client: Client | undefined;
+        try {
+          const options = getGlobalOptions();
+          const configManager = new ConfigManager(options);
+          let token = configManager.getToken();
+          
+          if (!token) {
+            await forceRelogin(configManager);
+            token = configManager.getToken();
+            if (!token) {
+              throw new Error('Failed to get token after re-login');
+            }
+          }
+
+          const api = new NileAPI({
+            token,
+            dbHost: configManager.getDbHost(),
+            controlPlaneUrl: configManager.getGlobalHost(),
+            debug: options.debug
+          });
+
+          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
+          client = await getPostgresClient(api, workspaceSlug, databaseName, options);
+          
+          console.log(theme.dim('\nFetching users...'));
+          const result = await client.query('SELECT * FROM users');
+          const users = result.rows;
+          
+          if (users.length === 0) {
+            console.log('No users found');
+            return;
+          }
+
+          console.log('\nUsers:');
+          const usersTable = new Table({
+            head: [
+              theme.header('ID'),
+              theme.header('EMAIL'),
+              theme.header('TENANT ID')
+            ],
+            style: {
+              head: [],
+              border: [],
+            },
+            chars: {
+              'top': '─',
+              'top-mid': '┬',
+              'top-left': '┌',
+              'top-right': '┐',
+              'bottom': '─',
+              'bottom-mid': '┴',
+              'bottom-left': '└',
+              'bottom-right': '┘',
+              'left': '│',
+              'left-mid': '├',
+              'mid': '─',
+              'mid-mid': '┼',
+              'right': '│',
+              'right-mid': '┤',
+              'middle': '│'
+            }
+          });
+
+          users.forEach(user => {
+            usersTable.push([
+              theme.primary(user.id),
+              theme.info(user.email),
+              theme.secondary(user.tenant_id || '(none)')
+            ]);
+          });
+
+          console.log(usersTable.toString());
+        } catch (error: any) {
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleUserError(error, 'list users', new ConfigManager(getGlobalOptions()));
+          } else {
+            throw error;
+          }
+        } finally {
+          if (client) {
+            await client.end();
+          }
+        }
+      });
+
+    const createCmd = new Command('create')
+      .description('Create a new user')
+      .requiredOption('--email <email>', 'Email address of the user')
+      .requiredOption('--password <password>', 'Password for the user')
+      .option('--tenant <tenant>', 'Tenant ID to associate with the user')
+      .addHelpText('after', `
+Examples:
+  ${formatCommand('nile users create', '--email "user@example.com" --password "password123"')}  Create a user with email and password
+  ${formatCommand('nile users create', '--email "user@example.com" --password "password123" --tenant tenant-123')}  Create user in specific tenant
       `)
       .action(async (cmdOptions) => {
         let client: Client | undefined;
@@ -123,146 +219,55 @@ Examples:
             token: configManager.getToken(),
             dbHost: configManager.getDbHost(),
             controlPlaneUrl: configManager.getGlobalHost(),
-            debug: options.debug
           });
-
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
-
-          // Begin transaction
-          await client.query('BEGIN');
-
-          try {
-            // Insert into users schema
-            console.log(theme.dim('\nCreating user...'));
-            const result = await client.query(
-              `INSERT INTO users.users (
-                email,
-                name,
-                given_name,
-                family_name,
-                picture
-              ) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-              [
-                cmdOptions.email,
-                cmdOptions.name || null,
-                cmdOptions.givenName || null,
-                cmdOptions.familyName || null,
-                cmdOptions.picture || null
-              ]
-            );
-
-            const user = result.rows[0];
-
-            // Create auth credentials (this would typically be handled by auth service)
-            await client.query(
-              `INSERT INTO auth.credentials (
-                user_id,
-                identifier,
-                password,
-                type
-              ) VALUES ($1, $2, crypt($3, gen_salt('bf')), 'password')`,
-              [user.id, cmdOptions.email, cmdOptions.password]
-            );
-
-            // If tenant ID is provided, create user-tenant relationship
-            if (cmdOptions.tenantId) {
-              await client.query(
-                `INSERT INTO users.tenant_users (
-                  tenant_id,
-                  user_id,
-                  roles,
-                  email
-                ) VALUES ($1, $2, $3, $4)`,
-                [cmdOptions.tenantId, user.id, cmdOptions.roles || null, cmdOptions.email]
-              );
+          
+          console.log(theme.dim(`\nCreating user with email: ${cmdOptions.email}`));
+          const result = await client.query(
+            'INSERT INTO users (email, password, tenant_id) VALUES ($1, $2, $3) RETURNING *',
+            [cmdOptions.email, cmdOptions.password, cmdOptions.tenant]
+          );
+          
+          const user = result.rows[0];
+          console.log('\nUser created:');
+          const detailsTable = new Table({
+            style: {
+              head: [],
+              border: [],
+            },
+            chars: {
+              'top': '─',
+              'top-mid': '┬',
+              'top-left': '┌',
+              'top-right': '┐',
+              'bottom': '─',
+              'bottom-mid': '┴',
+              'bottom-left': '└',
+              'bottom-right': '┘',
+              'left': '│',
+              'left-mid': '├',
+              'mid': '─',
+              'mid-mid': '┼',
+              'right': '│',
+              'right-mid': '┤',
+              'middle': '│'
             }
+          });
 
-            // If new tenant name is provided, create tenant and relationship
-            if (cmdOptions.newTenantName) {
-              const tenantResult = await client.query(
-                'INSERT INTO tenants (name) VALUES ($1) RETURNING id',
-                [cmdOptions.newTenantName]
-              );
-              const tenantId = tenantResult.rows[0].id;
-              await client.query(
-                `INSERT INTO users.tenant_users (
-                  tenant_id,
-                  user_id,
-                  roles,
-                  email
-                ) VALUES ($1, $2, $3, $4)`,
-                [tenantId, user.id, cmdOptions.roles || null, cmdOptions.email]
-              );
-            }
+          detailsTable.push(
+            [theme.secondary('ID:'), theme.primary(user.id)],
+            [theme.secondary('Email:'), theme.info(user.email)],
+            [theme.secondary('Tenant ID:'), theme.secondary(user.tenant_id || '(none)')]
+          );
 
-            // Commit transaction
-            await client.query('COMMIT');
-
-            if (options.format === 'json') {
-              console.log(JSON.stringify(user, null, 2));
-              return;
-            }
-
-            if (options.format === 'csv') {
-              console.log('ID,EMAIL,NAME');
-              console.log(`${user.id},${user.email},${user.name || ''}`);
-              return;
-            }
-
-            // Create a nicely formatted table
-            const table = new Table({
-              head: ['Field', 'Value'].map(h => theme.primary(h)),
-              style: { head: [], border: [] },
-              chars: {
-                'top': '─',
-                'top-mid': '┬',
-                'top-left': '┌',
-                'top-right': '┐',
-                'bottom': '─',
-                'bottom-mid': '┴',
-                'bottom-left': '└',
-                'bottom-right': '┘',
-                'left': '│',
-                'left-mid': '├',
-                'mid': '─',
-                'mid-mid': '┼',
-                'right': '│',
-                'right-mid': '┤',
-                'middle': '│'
-              }
-            });
-
-            table.push(
-              ['ID', theme.info(user.id)],
-              ['Email', theme.info(user.email)],
-              ['Name', theme.info(user.name || '')],
-              ['Given Name', theme.info(user.given_name || '')],
-              ['Family Name', theme.info(user.family_name || '')],
-              ['Picture', theme.info(user.picture || '')]
-            );
-
-            console.log('\nUser created successfully:');
-            console.log(table.toString());
-
-            if (cmdOptions.tenantId) {
-              console.log(theme.success(`\nUser added to tenant: ${cmdOptions.tenantId}`));
-            } else if (cmdOptions.newTenantName) {
-              console.log(theme.success(`\nUser added to new tenant: ${cmdOptions.newTenantName}`));
-            }
-          } catch (error) {
-            // Rollback transaction on error
-            await client.query('ROLLBACK');
+          console.log(detailsTable.toString());
+        } catch (error: any) {
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleUserError(error, 'create user', new ConfigManager(getGlobalOptions()));
+          } else {
             throw error;
           }
-        } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to create user:'), error);
-          } else {
-            console.error(theme.error('Failed to create user:'), error.message || 'Unknown error');
-          }
-          process.exit(1);
         } finally {
           if (client) {
             await client.end();
@@ -270,105 +275,66 @@ Examples:
         }
       });
 
-    const tenantsCmd = new Command('tenants')
-      .description('List tenants for a user')
-      .requiredOption('--user-id <id>', 'ID of the user')
+    const deleteCmd = new Command('delete')
+      .description('Delete a user')
+      .requiredOption('--id <id>', 'ID of the user to delete')
       .addHelpText('after', `
 Examples:
-  ${formatCommand('nile users tenants', '--user-id user123')}  List all tenants for a user
+  ${formatCommand('nile users delete', '--id user-123')}                Delete a user by ID
+  ${formatCommand('nile users delete', '--id 550e8400-e29b-41d4-a716-446655440000')}  Delete user by UUID
       `)
       .action(async (cmdOptions) => {
+        let client: Client | undefined;
         try {
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
+          const token = await configManager.getToken();
           const api = new NileAPI({
-            token: configManager.getToken(),
+            token,
             dbHost: configManager.getDbHost(),
             controlPlaneUrl: configManager.getGlobalHost(),
-            debug: options.debug
           });
-
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
-          const databaseId = await api.getDatabaseId(workspaceSlug, databaseName);
 
-          const tenants = await api.getUserTenants(databaseId, cmdOptions.userId);
-
-          if (options.format === 'json') {
-            console.log(JSON.stringify(tenants, null, 2));
-            return;
+          // First verify the user exists
+          client = await getPostgresClient(api, workspaceSlug, databaseName, options);
+          const checkResult = await client.query('SELECT id, email FROM users WHERE id = $1', [cmdOptions.id]);
+          
+          if (checkResult.rowCount === 0) {
+            throw new Error(`User with ID '${cmdOptions.id}' not found`);
           }
 
-          if (options.format === 'csv') {
-            console.log('ID,NAME');
-            tenants.forEach(tenant => {
-              console.log(`${tenant.id},${tenant.name || ''}`);
-            });
-            return;
-          }
-
-          if (tenants.length === 0) {
-            console.log(theme.warning('\nNo tenants found for this user.'));
-            return;
-          }
-
-          console.log('\nUser Tenants:');
-          const table = new Table({
-            head: [
-              theme.header('ID'),
-              theme.header('NAME')
-            ],
-            style: { head: [], border: [] },
-            chars: {
-              'top': '─',
-              'top-mid': '┬',
-              'top-left': '┌',
-              'top-right': '┐',
-              'bottom': '─',
-              'bottom-mid': '┴',
-              'bottom-left': '└',
-              'bottom-right': '┘',
-              'left': '│',
-              'left-mid': '├',
-              'mid': '─',
-              'mid-mid': '┼',
-              'right': '│',
-              'right-mid': '┤',
-              'middle': '│'
-            }
-          });
-
-          tenants.forEach(tenant => {
-            table.push([
-              theme.primary(tenant.id),
-              theme.info(tenant.name || '(unnamed)')
-            ]);
-          });
-
-          console.log(table.toString());
+          const user = checkResult.rows[0];
+          console.log(theme.dim(`\nDeleting user '${user.email}' (${user.id})...`));
+          
+          // Delete the user
+          await client.query('DELETE FROM users WHERE id = $1', [cmdOptions.id]);
+          console.log(theme.success(`\nUser '${theme.bold(user.email)}' deleted successfully.`));
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to list user tenants:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleUserError(error, 'delete user', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('Failed to list user tenants:'), error.message || 'Unknown error');
+            throw error;
           }
-          process.exit(1);
+        } finally {
+          if (client) {
+            await client.end();
+          }
         }
       });
 
     const updateCmd = new Command('update')
-      .description('Update user details')
-      .requiredOption('--user-id <id>', 'ID of the user to update')
-      .option('--name <n>', 'Full name of the user')
-      .option('--given-name <n>', 'Given (first) name of the user')
-      .option('--family-name <n>', 'Family (last) name of the user')
-      .option('--picture <url>', 'URL of the user\'s profile picture')
+      .description('Update a user')
+      .requiredOption('--id <id>', 'ID of the user to update')
+      .option('--new_email <email>', 'New email address for the user')
+      .option('--new_password <password>', 'New password for the user')
       .addHelpText('after', `
 Examples:
-  ${formatCommand('nile users update', '--user-id user123 --name "Updated Name"')}
-  ${formatCommand('nile users update', '--user-id user123 --given-name "John" --family-name "Doe"')}
+  ${formatCommand('nile users update', '--id user-123 --new_email "new@example.com"')}  Update user email
+  ${formatCommand('nile users update', '--id user-123 --new_password "newpassword123"')}  Update user password
       `)
       .action(async (cmdOptions) => {
+        let client: Client | undefined;
         try {
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
@@ -376,115 +342,65 @@ Examples:
             token: configManager.getToken(),
             dbHost: configManager.getDbHost(),
             controlPlaneUrl: configManager.getGlobalHost(),
-            debug: options.debug
           });
-
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
-          const databaseId = await api.getDatabaseId(workspaceSlug, databaseName);
 
-          const updates = {
-            name: cmdOptions.name,
-            givenName: cmdOptions.givenName,
-            familyName: cmdOptions.familyName,
-            picture: cmdOptions.picture
-          };
+          console.log(theme.dim('\nUpdating user...'));
+          client = await getPostgresClient(api, workspaceSlug, databaseName, options);
+          
+          // Build update query based on provided options
+          const updates: string[] = [];
+          const values: any[] = [];
+          let paramCount = 1;
 
-          const user = await api.updateUser(databaseId, cmdOptions.userId, updates);
-
-          if (options.format === 'json') {
-            console.log(JSON.stringify(user, null, 2));
-            return;
+          if (cmdOptions.new_email) {
+            updates.push(`email = $${paramCount}`);
+            values.push(cmdOptions.new_email);
+            paramCount++;
           }
 
-          if (options.format === 'csv') {
-            console.log('ID,EMAIL,NAME');
-            console.log(`${user.id},${user.email},${user.name || ''}`);
-            return;
+          if (cmdOptions.new_password) {
+            updates.push(`password = $${paramCount}`);
+            values.push(cmdOptions.new_password);
+            paramCount++;
           }
 
-          console.log('\nUser updated successfully:');
-          const table = new Table({
-            head: ['Field', 'Value'].map(h => theme.primary(h)),
-            style: { head: [], border: [] },
-            chars: {
-              'top': '─',
-              'top-mid': '┬',
-              'top-left': '┌',
-              'top-right': '┐',
-              'bottom': '─',
-              'bottom-mid': '┴',
-              'bottom-left': '└',
-              'bottom-right': '┘',
-              'left': '│',
-              'left-mid': '├',
-              'mid': '─',
-              'mid-mid': '┼',
-              'right': '│',
-              'right-mid': '┤',
-              'middle': '│'
-            }
-          });
+          if (updates.length === 0) {
+            throw new Error('No update fields provided. Use --new_email or --new_password');
+          }
 
-          table.push(
-            ['ID', theme.info(user.id)],
-            ['Email', theme.info(user.email)],
-            ['Name', theme.info(user.name || '')],
-            ['Given Name', theme.info(user.givenName || '')],
-            ['Family Name', theme.info(user.familyName || '')],
-            ['Picture', theme.info(user.picture || '')]
-          );
+          values.push(cmdOptions.id);
+          const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+          
+          const result = await client.query(query, values);
 
-          console.log(table.toString());
+          if (result.rowCount === 0) {
+            throw new Error(`User with ID '${cmdOptions.id}' not found`);
+          }
+
+          const user = result.rows[0];
+          console.log(theme.success(`\nUser '${theme.bold(user.id)}' updated successfully.`));
+          console.log(theme.primary('\nUpdated user details:'));
+          console.log(`${theme.secondary('ID:')}   ${theme.primary(user.id)}`);
+          console.log(`${theme.secondary('Email:')} ${theme.info(user.email)}`);
+          console.log(`${theme.secondary('Tenant ID:')} ${theme.secondary(user.tenant_id || '(none)')}`);
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to update user:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleUserError(error, 'update user', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('Failed to update user:'), error.message || 'Unknown error');
+            throw error;
           }
-          process.exit(1);
+        } finally {
+          if (client) {
+            await client.end();
+          }
         }
       });
 
-    const removeTenantCmd = new Command('remove-tenant')
-      .description('Remove a user from a tenant')
-      .requiredOption('--user-id <id>', 'ID of the user')
-      .requiredOption('--tenant-id <id>', 'ID of the tenant')
-      .addHelpText('after', `
-Examples:
-  ${formatCommand('nile users remove-tenant', '--user-id user123 --tenant-id tenant123')}
-      `)
-      .action(async (cmdOptions) => {
-        try {
-          const options = getGlobalOptions();
-          const configManager = new ConfigManager(options);
-          const api = new NileAPI({
-            token: configManager.getToken(),
-            dbHost: configManager.getDbHost(),
-            controlPlaneUrl: configManager.getGlobalHost(),
-            debug: options.debug
-          });
-
-          const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
-          const databaseId = await api.getDatabaseId(workspaceSlug, databaseName);
-
-          await api.removeUserFromTenant(databaseId, cmdOptions.userId, cmdOptions.tenantId);
-          console.log(theme.success(`\nUser '${cmdOptions.userId}' removed from tenant '${cmdOptions.tenantId}'`));
-        } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to remove user from tenant:'), error);
-          } else {
-            console.error(theme.error('Failed to remove user from tenant:'), error.message || 'Unknown error');
-          }
-          process.exit(1);
-        }
-      });
-
+    users.addCommand(listCmd);
     users.addCommand(createCmd);
-    users.addCommand(tenantsCmd);
+    users.addCommand(deleteCmd);
     users.addCommand(updateCmd);
-    users.addCommand(removeTenantCmd);
   }
 }
 

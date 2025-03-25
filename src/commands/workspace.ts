@@ -3,8 +3,9 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
-import axios from 'axios';
+import { handleApiError, forceRelogin } from '../lib/errorHandling';
 import Table from 'cli-table3';
+import axios from 'axios';
 
 type GetOptions = () => GlobalOptions;
 
@@ -13,9 +14,12 @@ export function createWorkspaceCommand(getOptions: GetOptions): Command {
     .description('Manage workspaces')
     .addHelpText('after', `
 Examples:
-  ${formatCommand('nile workspace list')}                List all workspaces
-  ${formatCommand('nile workspace show')}                Show current workspace
-  ${formatCommand('nile config --workspace <name>')}     Set default workspace
+  ${formatCommand('nile workspace list')}                    List all workspaces
+  ${formatCommand('nile workspace show')}                    Show current workspace
+  ${formatCommand('nile workspace select <name>')}           Select a workspace
+  ${formatCommand('nile workspace create --name "My Workspace"')}  Create a new workspace
+  ${formatCommand('nile workspace delete <name>')}           Delete a workspace
+  ${formatCommand('nile workspace update <name>')}           Update workspace settings
 
 ${getGlobalOptionsHelp()}`);
 
@@ -26,12 +30,24 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager(options);
+        let token = configManager.getToken();
+        
+        if (!token) {
+          await forceRelogin(configManager);
+          // After re-login, get the new token
+          token = configManager.getToken();
+          if (!token) {
+            throw new Error('Failed to get token after re-login');
+          }
+        }
+
         const api = new NileAPI({
-          token: configManager.getToken(),
+          token,
           dbHost: configManager.getDbHost(),
           controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
+
         const workspaces = await api.listWorkspaces();
 
         if (options.format === 'json') {
@@ -48,22 +64,18 @@ ${getGlobalOptionsHelp()}`);
         }
 
         if (workspaces.length === 0) {
-          console.log(theme.warning('\nNo workspaces found'));
+          console.log(theme.warning('\nNo workspaces found.'));
+          console.log(theme.secondary('Run "nile workspace create" to create a workspace'));
           return;
         }
 
-        // Create a nicely formatted table using cli-table3
-        console.log(theme.primary('\nAvailable workspaces:'));
-        
+        console.log('\nWorkspaces:');
         const table = new Table({
           head: [
             theme.header('NAME'),
             theme.header('SLUG')
           ],
-          style: {
-            head: [],
-            border: [],
-          },
+          style: { head: [], border: [] },
           chars: {
             'top': '─',
             'top-mid': '┬',
@@ -83,7 +95,6 @@ ${getGlobalOptionsHelp()}`);
           }
         });
 
-        // Add rows to the table
         workspaces.forEach(w => {
           table.push([
             theme.primary(w.name),
@@ -93,17 +104,11 @@ ${getGlobalOptionsHelp()}`);
 
         console.log(table.toString());
       } catch (error: any) {
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          console.error(theme.error('Authentication failed. Please run "nile connect login" first'));
+        if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+          await handleApiError(error, 'list workspaces', new ConfigManager(getOptions()));
         } else {
-          const options = getOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to list workspaces:'), error);
-          } else {
-            console.error(theme.error('Failed to list workspaces:'), error.message || 'Unknown error');
-          }
+          throw error;
         }
-        process.exit(1);
       }
     });
 
@@ -122,9 +127,18 @@ ${getGlobalOptionsHelp()}`);
           return;
         }
 
+        let token = configManager.getToken();
+        if (!token) {
+          await forceRelogin(configManager);
+          token = configManager.getToken();
+          if (!token) {
+            throw new Error('Failed to get token after re-login');
+          }
+        }
+
         // Get workspace details from API
         const api = new NileAPI({
-          token: configManager.getToken(),
+          token,
           dbHost: configManager.getDbHost(),
           controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
@@ -174,13 +188,11 @@ ${getGlobalOptionsHelp()}`);
 
         console.log(detailsTable.toString());
       } catch (error: any) {
-        const options = getOptions();
-        if (options.debug) {
-          console.error(theme.error('Failed to get workspace:'), error);
+        if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+          await handleApiError(error, 'get workspace details', new ConfigManager(getOptions()));
         } else {
-          console.error(theme.error('Failed to get workspace:'), error.message || 'Unknown error');
+          throw error;
         }
-        process.exit(1);
       }
     });
 

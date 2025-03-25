@@ -4,7 +4,9 @@ import { ConfigManager } from '../lib/config';
 import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
+import { handleTenantError, forceRelogin } from '../lib/errorHandling';
 import Table from 'cli-table3';
+import axios from 'axios';
 
 async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ workspaceSlug: string; databaseName: string }> {
     const configManager = new ConfigManager(options);
@@ -12,7 +14,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
     if (!workspaceSlug) {
         throw new Error('No workspace specified. Use one of:\n' +
             '1. --workspace flag\n' +
-            '2. nile config --workspace <name>\n' +
+            '2. nile config --workspace <n>\n' +
             '3. NILE_WORKSPACE environment variable');
     }
 
@@ -20,7 +22,7 @@ async function getWorkspaceAndDatabase(options: GlobalOptions): Promise<{ worksp
     if (!databaseName) {
         throw new Error('No database specified. Use one of:\n' +
             '1. --db flag\n' +
-            '2. nile config --db <name>\n' +
+            '2. nile config --db <n>\n' +
             '3. NILE_DB environment variable');
     }
 
@@ -121,12 +123,23 @@ Examples:
         try {
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
+          let token = configManager.getToken();
+          
+          if (!token) {
+            await forceRelogin(configManager);
+            token = configManager.getToken();
+            if (!token) {
+              throw new Error('Failed to get token after re-login');
+            }
+          }
+
           const api = new NileAPI({
-            token: configManager.getToken(),
+            token,
             dbHost: configManager.getDbHost(),
             controlPlaneUrl: configManager.getGlobalHost(),
             debug: options.debug
           });
+
           const { workspaceSlug, databaseName } = await getWorkspaceAndDatabase(options);
           client = await getPostgresClient(api, workspaceSlug, databaseName, options);
           
@@ -177,13 +190,11 @@ Examples:
 
           console.log(tenantsTable.toString());
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to list tenants:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleTenantError(error, 'list tenants', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('Failed to list tenants:'), error.message || 'Unknown error');
+            throw error;
           }
-          process.exit(1);
         } finally {
           if (client) {
             await client.end();
@@ -260,13 +271,11 @@ Examples:
 
           console.log(detailsTable.toString());
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('Failed to create tenant:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleTenantError(error, 'create tenant', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('Failed to create tenant:'), error.message || 'Unknown error');
+            throw error;
           }
-          process.exit(1);
         } finally {
           if (client) {
             await client.end();
@@ -310,13 +319,11 @@ Examples:
           await client.query('DELETE FROM tenants WHERE id = $1', [cmdOptions.id]);
           console.log(theme.success(`\nTenant '${theme.bold(tenant.name)}' deleted successfully.`));
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('\nFailed to delete tenant:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleTenantError(error, 'delete tenant', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('\nFailed to delete tenant:'), error instanceof Error ? error.message : 'Unknown error');
+            throw error;
           }
-          process.exit(1);
         } finally {
           if (client) {
             await client.end();
@@ -362,13 +369,11 @@ Examples:
           console.log(`${theme.secondary('ID:')}   ${theme.primary(tenant.id)}`);
           console.log(`${theme.secondary('Name:')} ${theme.info(tenant.name)}`);
         } catch (error: any) {
-          const options = getGlobalOptions();
-          if (options.debug) {
-            console.error(theme.error('\nFailed to update tenant:'), error);
+          if (axios.isAxiosError(error) && (error.response?.status === 401 || error.message === 'Token is required')) {
+            await handleTenantError(error, 'update tenant', new ConfigManager(getGlobalOptions()));
           } else {
-            console.error(theme.error('\nFailed to update tenant:'), error instanceof Error ? error.message : 'Unknown error');
+            throw error;
           }
-          process.exit(1);
         } finally {
           if (client) {
             await client.end();

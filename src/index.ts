@@ -8,6 +8,7 @@ import { createTenantsCommand } from './commands/tenants';
 import { configCommand } from './commands/config';
 import { createUsersCommand } from './commands/user';
 import { createLocalCommand } from './commands/local';
+import { createAuthCommand } from './commands/auth';
 import { addGlobalOptions, updateChalkConfig } from './lib/globalOptions';
 import { version } from '../package.json';
 
@@ -22,6 +23,8 @@ Examples:
   $ nile config --api-key <key>   Set API key in config
   $ nile users create             Create a new user
   $ nile local start              Start local development environment
+  $ nile auth quickstart --nextjs Set up authentication in a Next.js app
+  $ nile auth env                 Generate environment variables
 `);
 
 // Add global options
@@ -41,5 +44,6 @@ cli.addCommand(createTenantsCommand(() => cli.opts()));
 cli.addCommand(configCommand());
 cli.addCommand(createUsersCommand(() => cli.opts()));
 cli.addCommand(createLocalCommand(() => cli.opts()));
+cli.addCommand(createAuthCommand(() => cli.opts()));
 
 cli.parse(process.argv); 

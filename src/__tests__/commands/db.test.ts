@@ -124,7 +124,7 @@ describe('DB Command', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(ProcessExitError);
         expect(console.error).toHaveBeenCalledWith(
-          theme.error('Failed to list databases:'),
+          theme.error('Database operation failed: list databases'),
           'API Error'
         );
       }
@@ -207,7 +207,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to create database:'), 'API error');
+      expect(console.error).toHaveBeenCalledWith(theme.error('Database operation failed: create database'), 'API error');
     });
   });
 
@@ -278,10 +278,9 @@ describe('DB Command', () => {
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
       expect(console.error).toHaveBeenCalledWith(
-        theme.error('Failed to delete database:'),
+        theme.error('Database operation failed: delete database'),
         expect.stringContaining('No database specified')
       );
-      expect(actualError).toContain('No database specified');
     });
 
     it('should handle API errors', async () => {
@@ -293,7 +292,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to delete database:'), 'API error');
+      expect(console.error).toHaveBeenCalledWith(theme.error('Database operation failed: delete database'), 'API error');
     });
   });
 
@@ -338,7 +337,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to list regions:'), 'API error');
+      expect(console.error).toHaveBeenCalledWith(theme.error('Database operation failed: list regions'), 'API error');
     });
   });
 
@@ -394,10 +393,9 @@ describe('DB Command', () => {
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
       expect(console.error).toHaveBeenCalledWith(
-        theme.error('Failed to get connection string:'),
+        theme.error('Database operation failed: get connection string'),
         expect.stringContaining('No database specified')
       );
-      expect(actualError).toContain('No database specified');
     });
 
     it('should require --psql flag', async () => {
@@ -426,10 +424,9 @@ describe('DB Command', () => {
 
       const actualError = (console.error as jest.Mock).mock.calls[0][1];
       expect(console.error).toHaveBeenCalledWith(
-        theme.error('Failed to get connection string:'),
+        theme.error('Database operation failed: get connection string'),
         expect.stringContaining('No workspace specified')
       );
-      expect(actualError).toContain('No workspace specified');
     });
 
     it('should handle API errors', async () => {
@@ -441,7 +438,7 @@ describe('DB Command', () => {
         expectProcessExit(error);
       }
 
-      expect(console.error).toHaveBeenCalledWith(theme.error('Failed to get connection string:'), 'API error');
+      expect(console.error).toHaveBeenCalledWith(theme.error('Database operation failed: get connection string'), 'API error');
     });
   });
 }); 

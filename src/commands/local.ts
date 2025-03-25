@@ -5,6 +5,7 @@ import { spawn, exec } from 'child_process';
 import readline from 'readline';
 import ora from 'ora';
 import { promisify } from 'util';
+import os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -32,6 +33,39 @@ async function waitForPostgres(getOptions: GetOptions, retries = 30, interval = 
     }
   }
   return false;
+}
+
+async function isDockerRunning(): Promise<boolean> {
+  try {
+    await execAsync('docker info');
+    return true;
+  } catch (error: any) {
+    return false;
+  }
+}
+
+function getDockerStartCommand(): string {
+  const platform = os.platform();
+  switch (platform) {
+    case 'darwin':
+      return 'open -a Docker';
+    case 'win32':
+      return 'start /B "" "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"';
+    default:
+      return 'systemctl start docker';
+  }
+}
+
+function getDockerInstallInstructions(): string {
+  const platform = os.platform();
+  switch (platform) {
+    case 'darwin':
+      return 'https://docs.docker.com/desktop/install/mac-install/';
+    case 'win32':
+      return 'https://docs.docker.com/desktop/install/windows-install/';
+    default:
+      return 'https://docs.docker.com/engine/install/';
+  }
 }
 
 export function createLocalCommand(getOptions: GetOptions): Command {
@@ -129,6 +163,17 @@ ${getGlobalOptionsHelp()}`);
     .option('--no-prompt', 'Start without prompting for psql connection')
     .action(async (cmdOptions) => {
       try {
+        // Check if Docker daemon is running
+        const dockerRunning = await isDockerRunning();
+        if (!dockerRunning) {
+          console.error(theme.error('\nDocker daemon is not running.'));
+          console.log(theme.info('\nTo start Docker:'));
+          console.log(theme.dim(`Run: ${getDockerStartCommand()}`));
+          console.log(theme.info('\nIf Docker is not installed:'));
+          console.log(theme.dim(`Visit: ${getDockerInstallInstructions()}`));
+          process.exit(1);
+        }
+
         // Check if container is already running
         try {
           const { stdout } = await execAsync('docker ps --filter name=nile-local --format {{.Names}}');
