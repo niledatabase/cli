@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { GlobalOptions } from './globalOptions';
+import { theme } from './colors';
 
 export interface NileConfig {
     apiKey?: string;
@@ -52,11 +53,8 @@ export class ConfigManager {
                 this.config = JSON.parse(configContent);
             }
 
-            // Load credentials if they exist
-            if (fs.existsSync(this.credentialsPath)) {
-                const credentialsContent = fs.readFileSync(this.credentialsPath, 'utf-8');
-                this.credentials = JSON.parse(credentialsContent);
-            }
+            // Load credentials
+            this.loadCredentials();
         } catch (error) {
             console.error('Error loading config:', error);
         }
@@ -79,6 +77,8 @@ export class ConfigManager {
             }
             if (Object.keys(this.credentials).length > 0) {
                 fs.writeFileSync(this.credentialsPath, JSON.stringify(this.credentials, null, 2));
+                // Reload credentials after saving
+                this.loadCredentials();
             } else {
                 // If no credentials, remove the credentials file
                 if (fs.existsSync(this.credentialsPath)) {
@@ -91,6 +91,17 @@ export class ConfigManager {
         }
     }
 
+    private loadCredentials(): void {
+        try {
+            if (fs.existsSync(this.credentialsPath)) {
+                const credentialsContent = fs.readFileSync(this.credentialsPath, 'utf-8');
+                this.credentials = JSON.parse(credentialsContent);
+            }
+        } catch (error) {
+            console.error('Error loading credentials:', error);
+        }
+    }
+
     resetConfig(): void {
         this.config = {};
         this.credentials = {};
@@ -100,24 +111,47 @@ export class ConfigManager {
 
     // Token management methods
     setToken(token: string): void {
+        if (this.globalOptions.debug) {
+            console.log(theme.dim('Setting token in credentials...'));
+        }
         this.credentials.token = token;
         this.saveCredentials();
+        // Ensure credentials are reloaded
+        this.loadCredentials();
+        if (this.globalOptions.debug) {
+            console.log(theme.dim('Token set and credentials reloaded'));
+        }
     }
 
     getToken(): string | undefined {
         // First check for API key (highest priority)
         const apiKey = this.getApiKey();
         if (apiKey) {
+            if (this.globalOptions.debug) {
+                console.log(theme.dim('Using API key for authentication'));
+            }
             return apiKey;
         }
 
         // If no API key, check credentials file
-        return this.credentials.token;
+        const token = this.credentials.token;
+        if (this.globalOptions.debug) {
+            console.log(theme.dim('Using stored token for authentication'));
+        }
+        return token;
     }
 
     removeToken(): void {
+        if (this.globalOptions.debug) {
+            console.log(theme.dim('Removing token from credentials...'));
+        }
         delete this.credentials.token;
         this.saveCredentials();
+        // Ensure credentials are reloaded
+        this.loadCredentials();
+        if (this.globalOptions.debug) {
+            console.log(theme.dim('Token removed and credentials reloaded'));
+        }
     }
 
     setApiKey(apiKey: string): NileConfig {
