@@ -170,7 +170,7 @@ describe('Tenants Command', () => {
 
       await expect(
         program.parseAsync(['node', 'test', 'tenants', 'create', '--name', 'New Tenant'])
-      ).rejects.toThrow('Process.exit called with code: 1');
+      ).rejects.toThrow('Database error');
 
       expect(mockClient.end).toHaveBeenCalled();
     });
@@ -203,7 +203,7 @@ describe('Tenants Command', () => {
           '--id', 'non-existent',
           '--new_name', 'New Name'
         ])
-      ).rejects.toThrow('Process.exit called with code: 1');
+      ).rejects.toThrow(`Tenant with ID 'non-existent' not found`);
 
       expect(mockClient.end).toHaveBeenCalled();
     });
@@ -241,7 +241,7 @@ describe('Tenants Command', () => {
           'node', 'test', 'tenants', 'delete',
           '--id', 'non-existent'
         ])
-      ).rejects.toThrow('Process.exit called with code: 1');
+      ).rejects.toThrow(`Tenant with ID 'non-existent' not found`);
 
       expect(mockClient.end).toHaveBeenCalled();
     });
@@ -253,7 +253,7 @@ describe('Tenants Command', () => {
 
       await expect(
         program.parseAsync(['node', 'test', 'tenants', 'create', '--name', 'New Tenant'])
-      ).rejects.toThrow('Process.exit called with code: 1');
+      ).rejects.toThrow('Database error');
 
       expect(mockClient.end).toHaveBeenCalled();
     });
