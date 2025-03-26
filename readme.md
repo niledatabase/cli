@@ -107,11 +107,6 @@ nile connect login          # Login using browser-based authentication
 nile connect status        # Check connection status
 nile connect logout       # Clear stored credentials
 
-# Authentication Setup
-nile auth quickstart --nextjs  # Set up authentication in a Next.js app
-nile auth env                  # Generate environment variables
-nile auth env --output .env.local  # Save environment variables to file
-
 # Workspace Management
 nile workspace list       # List all workspaces
 nile workspace show      # Show current workspace details
@@ -139,6 +134,11 @@ nile users create --email "user@example.com" --password "pass123" --tenant tenan
 nile users list                                                        # List all users
 nile users update --id user-123 --new_email "new@example.com"         # Update user email
 nile users delete --id user-123                                        # Delete user
+
+# Nile Auth Setup
+nile auth quickstart --nextjs  # Set up authentication in a Next.js app
+nile auth env                  # Generate environment variables
+nile auth env --output .env.local  # Save environment variables to file
 
 # Local Development
 nile local start      # Start local development environment
