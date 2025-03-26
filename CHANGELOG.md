@@ -1,3 +1,10 @@
+# [1.2.0-alpha.2](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.1...v1.2.0-alpha.2) (2025-03-26)
+
+
+### Features
+
+* bug fixes ([6f20aa6](https://github.com/niledatabase/cli/commit/6f20aa6a8d27c67341152bf88a6c5470a958d7cc))
+
 # [1.2.0-alpha.1](https://github.com/niledatabase/cli/compare/v1.1.0...v1.2.0-alpha.1) (2025-03-26)
 
 
