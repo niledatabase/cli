@@ -1,3 +1,11 @@
+# [1.2.0-alpha.1](https://github.com/niledatabase/cli/compare/v1.1.0...v1.2.0-alpha.1) (2025-03-26)
+
+
+### Features
+
+* update readme ([e41849f](https://github.com/niledatabase/cli/commit/e41849f4bec20f86f787f814608c7e961105f8b2))
+* update readme ([362e3b7](https://github.com/niledatabase/cli/commit/362e3b7ec7bf5c6d9ca039fd3fd981696df9d12f))
+
 # [1.1.0](https://github.com/niledatabase/cli/compare/v1.0.11...v1.1.0) (2025-03-24)
 
 
