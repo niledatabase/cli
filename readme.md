@@ -107,6 +107,11 @@ nile connect login          # Login using browser-based authentication
 nile connect status        # Check connection status
 nile connect logout       # Clear stored credentials
 
+# Authentication Setup
+nile auth quickstart --nextjs  # Set up authentication in a Next.js app
+nile auth env                  # Generate environment variables
+nile auth env --output .env.local  # Save environment variables to file
+
 # Workspace Management
 nile workspace list       # List all workspaces
 nile workspace show      # Show current workspace details
@@ -118,17 +123,22 @@ nile db show <name>     # Show database details
 nile db create --name <name> --region <region>  # Create a new database
 nile db delete <name>   # Delete a database
 nile db psql           # Connect using PostgreSQL CLI
+nile db connectionstring --psql  # Get PostgreSQL connection string
+nile db regions        # List available regions
 
 # Tenant Management
-nile tenants list                    # List all tenants
-nile tenants create --name "Name"    # Create a tenant
-nile tenants update --id <id> --new_name "Name"  # Update tenant
-nile tenants delete --id <id>        # Delete tenant
+nile tenants list                                    # List all tenants
+nile tenants create --name "Name"                    # Create a tenant
+nile tenants create --name "Name" --id custom-id     # Create tenant with custom ID
+nile tenants update --id <id> --new_name "Name"      # Update tenant
+nile tenants delete --id <id>                        # Delete tenant
 
 # User Management
-nile users create      # Create a new user
-nile users list       # List users
-nile users delete     # Delete a user
+nile users create --email "user@example.com" --password "password123"  # Create a new user
+nile users create --email "user@example.com" --password "pass123" --tenant tenant-123  # Create user in tenant
+nile users list                                                        # List all users
+nile users update --id user-123 --new_email "new@example.com"         # Update user email
+nile users delete --id user-123                                        # Delete user
 
 # Local Development
 nile local start      # Start local development environment
@@ -367,8 +377,8 @@ nile tenants delete --id tenant-123
 These options work with all commands:
 
 - `--api-key <key>`: API key for authentication
-- `--workspace <n>`: Workspace to use
-- `--db <n>`: Database to use
+- `--workspace <name>`: Workspace to use
+- `--db <name>`: Database to use
 - `-f, --format <type>`: Output format: human (default), json, or csv
 - `--color`: Enable colored output (default: true)
 - `--no-color`: Disable colored output
