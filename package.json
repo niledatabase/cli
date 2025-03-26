@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@types/pg": "^8.11.10",
-    "axios": "^1.6.0",
+    "axios": "^1.8.4",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
     "commander": "^11.0.0",
