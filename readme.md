@@ -120,6 +120,7 @@ nile db delete <name>   # Delete a database
 nile db psql           # Connect using PostgreSQL CLI
 nile db connectionstring --psql  # Get PostgreSQL connection string
 nile db regions        # List available regions
+nile db copy --table-name <table> --format csv --file-name <file>  # Copy data from a file into a table
 
 # Tenant Management
 nile tenants list                                    # List all tenants
@@ -352,6 +353,39 @@ nile db connectionstring --name mydb
 # Delete a database (use --force to skip confirmation)
 nile db delete mydb
 ```
+
+### Database Data Import
+
+The `nile db copy` command allows you to import data from files into database tables. Note that the target table must already exist in the database with the appropriate columns that match your input data.
+
+```bash
+# Basic usage
+nile db copy --table-name products --format csv --file-name products.csv
+
+# With optional parameters
+nile db copy \
+  --table-name products \
+  --format csv \
+  --file-name products.csv \
+  --delimiter "," \
+  --column-list "id,name,price" \
+  --debug
+
+# Parameters:
+# --table-name <n>     Target table name (required, must exist in database)
+# --format <type>         File format: csv or text (required)
+# --file-name <path>      Input file path (required)
+# --delimiter <char>      Column delimiter character (optional, default: comma for CSV)
+# --column-list <list>    Comma-separated list of column names (optional)
+# --debug                 Show detailed progress information (optional)
+```
+
+The command supports:
+- Batch processing for optimal performance
+- Progress bar showing completion status and speed
+- CSV files with headers
+- Custom column mapping
+- Debug mode for detailed progress information
 
 ## Tenant Management
 

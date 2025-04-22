@@ -5,6 +5,7 @@ import { ConfigManager } from '../../lib/config';
 import { GlobalOptions } from '../../lib/globalOptions';
 import { theme } from '../../lib/colors';
 import { EventEmitter } from 'events';
+import fs from 'fs';
 
 // Custom error class for process.exit
 class ProcessExitError extends Error {
@@ -379,6 +380,171 @@ describe('DB Command', () => {
       await expect(
         program.parseAsync(['node', 'test', 'db', 'connectionstring', 'test-db', '--psql'])
       ).rejects.toThrow('API error');
+    });
+  });
+
+  describe('copy command', () => {
+    let mockClient: any;
+    let mockConnect: jest.Mock;
+    let mockQuery: jest.Mock;
+    let mockEnd: jest.Mock;
+    let mockFs: any;
+    let mockConsoleError: jest.SpyInstance;
+
+    beforeEach(() => {
+      // Mock console.error instead of stderr
+      mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Mock the pg Client
+      mockQuery = jest.fn();
+      mockConnect = jest.fn();
+      mockEnd = jest.fn();
+      mockClient = {
+        connect: mockConnect,
+        query: mockQuery,
+        end: mockEnd
+      };
+      const { Client } = require('pg');
+      Client.mockImplementation(() => mockClient);
+
+      // Mock fs
+      mockFs = {
+        existsSync: jest.fn().mockReturnValue(true),
+        readFileSync: jest.fn().mockReturnValue('id,name,price,tenant_id\n1,Product 1,10.99,tenant1\n2,Product 2,20.99,tenant2')
+      };
+      jest.spyOn(fs, 'existsSync').mockImplementation(mockFs.existsSync);
+      jest.spyOn(fs, 'readFileSync').mockImplementation(mockFs.readFileSync);
+
+      // Mock database connection response
+      mockNileAPI.getDatabaseConnection.mockResolvedValue({
+        host: 'test-host',
+        database: 'test-db',
+        user: 'test-user',
+        password: 'test-password',
+        port: 5432
+      });
+
+      // Mock successful table check query
+      mockQuery.mockResolvedValueOnce({ rows: [{ column_name: 'tenant_id' }] });
+    });
+
+    afterEach(() => {
+      mockConsoleError.mockRestore();
+      jest.clearAllMocks();
+    });
+
+    it('should copy data from CSV file successfully', async () => {
+      // Mock successful transaction
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // First insert
+        .mockResolvedValueOnce({ rows: [] }) // Second insert
+        .mockResolvedValueOnce({ rows: [] }); // COMMIT
+
+      await program.parseAsync([
+        'node', 'test', 'db', 'copy',
+        '--table-name', 'products',
+        '--file-name', 'test.csv',
+        '--format', 'csv'
+      ]);
+
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockQuery).toHaveBeenCalledWith('BEGIN');
+      expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO products'));
+      expect(mockEnd).toHaveBeenCalled();
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Copy operation completed successfully'));
+    });
+
+    it('should handle missing file error', async () => {
+      mockFs.existsSync.mockReturnValueOnce(false);
+
+      try {
+        await program.parseAsync([
+          'node', 'test', 'db', 'copy',
+          '--table-name', 'products',
+          '--file-name', 'nonexistent.csv',
+          '--format', 'csv'
+        ]);
+        fail('Expected error to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ProcessExitError);
+        const calls = mockConsoleError.mock.calls;
+        expect(calls.length).toBe(1);
+        expect(calls[0][0]).toContain('Failed');
+        expect(calls[0][0]).toContain('copy');
+        expect(calls[0][1]).toBeInstanceOf(Error);
+        expect(calls[0][1].message).toContain('File');
+        expect(calls[0][1].message).toContain('not found');
+      }
+    });
+
+    it('should handle invalid format error', async () => {
+      try {
+        await program.parseAsync([
+          'node', 'test', 'db', 'copy',
+          '--table-name', 'products',
+          '--file-name', 'test.csv',
+          '--format', 'invalid'
+        ]);
+        fail('Expected error to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ProcessExitError);
+        const calls = mockConsoleError.mock.calls;
+        expect(calls.length).toBe(1);
+        expect(calls[0][0]).toContain('Failed');
+        expect(calls[0][0]).toContain('copy');
+        expect(calls[0][1]).toBeInstanceOf(Error);
+        expect(calls[0][1].message).toContain('Format');
+        expect(calls[0][1].message).toContain('csv');
+        expect(calls[0][1].message).toContain('text');
+      }
+    });
+
+    it('should handle database error during copy', async () => {
+      // Set up the error scenario
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ column_name: 'tenant_id' }] }) // Table check
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockRejectedValueOnce(new Error('Database error')) // Insert fails
+        .mockResolvedValueOnce({ rows: [] }); // ROLLBACK
+
+      try {
+        await program.parseAsync([
+          'node', 'test', 'db', 'copy',
+          '--table-name', 'products',
+          '--file-name', 'test.csv',
+          '--format', 'csv'
+        ]);
+        fail('Expected error to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ProcessExitError);
+        expect(mockQuery).toHaveBeenCalledWith('ROLLBACK');
+        expect(mockConsoleError).toHaveBeenCalledWith(
+          expect.stringContaining('Failed to copy data:'),
+          expect.objectContaining({ message: 'Database error' })
+        );
+      }
+    });
+
+    it('should support text format with custom delimiter', async () => {
+      mockFs.readFileSync.mockReturnValueOnce('id\tname\tprice\ttenant_id\n1\tProduct 1\t10.99\ttenant1');
+
+      // Mock successful transaction
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // Insert
+        .mockResolvedValueOnce({ rows: [] }); // COMMIT
+
+      await program.parseAsync([
+        'node', 'test', 'db', 'copy',
+        '--table-name', 'products',
+        '--file-name', 'test.txt',
+        '--format', 'text',
+        '--delimiter', '\t'
+      ]);
+
+      expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO products'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Copy operation completed successfully'));
     });
   });
 }); 

@@ -7,6 +7,13 @@ import { spawn } from 'child_process';
 import Table from 'cli-table3';
 import { handleDatabaseError, forceRelogin } from '../lib/errorHandling';
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { Client } from 'pg';
+import { from as copyFrom } from 'pg-copy-streams';
+import format from 'pg-format';
+import { SingleBar, Presets } from 'cli-progress';
 
 type GetOptions = () => GlobalOptions;
 
@@ -438,7 +445,10 @@ ${getGlobalOptionsHelp()}`);
           debug: options.debug
         });
 
-        // Get database connection details
+        // Get database connection
+        if (options.debug) {
+          console.log('Fetching database credentials...');
+        }
         const connection = await api.getDatabaseConnection(workspaceSlug, databaseName);
 
         // Construct psql connection string
@@ -529,6 +539,195 @@ ${getGlobalOptionsHelp()}`);
         } else {
           throw error;
         }
+      }
+    });
+
+  db
+    .command('copy')
+    .description('Copy data from a file to a Nile PostgreSQL table')
+    .requiredOption('--table-name <n>', 'Target table name')
+    .option('--column-list <columns>', 'Comma-separated list of column names')
+    .requiredOption('--file-name <file>', 'Input file path')
+    .option('--format [type]', 'File format (csv or text)', 'csv')
+    .option('--delimiter <char>', 'Column delimiter character')
+    .action(async (cmdOptions) => {
+      try {
+        const options = getOptions();
+        const configManager = new ConfigManager(options);
+        const workspaceSlug = configManager.getWorkspace();
+        if (!workspaceSlug) {
+          throw new Error('No workspace specified. Use one of:\n' +
+            '1. --workspace flag\n' +
+            '2. nile config --workspace <n>\n' +
+            '3. NILE_WORKSPACE environment variable');
+        }
+
+        // Get database name from config
+        const databaseName = configManager.getDatabase();
+        if (!databaseName) {
+          throw new Error('No database specified. Use one of:\n' +
+            '1. --db flag\n' +
+            '2. nile config --db <n>\n' +
+            '3. NILE_DB environment variable');
+        }
+
+        // Validate format
+        if (cmdOptions.format !== 'csv' && cmdOptions.format !== 'text') {
+          throw new Error('Format must be either "csv" or "text"');
+        }
+
+        // Validate file exists
+        if (!fs.existsSync(cmdOptions.fileName)) {
+          throw new Error(`File not found: ${cmdOptions.fileName}`);
+        }
+
+        const api = new NileAPI({
+          token: configManager.getToken(),
+          dbHost: configManager.getDbHost(),
+          controlPlaneUrl: configManager.getGlobalHost(),
+          debug: options.debug
+        });
+
+        // Get database connection
+        if (options.debug) {
+          console.log('Fetching database credentials...');
+        }
+        const connection = await api.getDatabaseConnection(workspaceSlug, databaseName);
+        
+        // Create postgres client
+        const client = new Client({
+          host: connection.host,
+          port: connection.port || 5432,
+          database: connection.database,
+          user: connection.user,
+          password: connection.password,
+          ssl: {
+            rejectUnauthorized: false
+          }
+        });
+
+        await client.connect();
+
+        try {
+          // Check if tenant_id column exists in the table
+          const tableQuery = await client.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = $1 
+            AND column_name = 'tenant_id'
+          `, [cmdOptions.tableName]);
+          
+          const hasTenantId = tableQuery.rows.length > 0;
+
+          // Read the file content
+          const fileContent = fs.readFileSync(cmdOptions.fileName, 'utf8');
+          const lines = fileContent.split('\n').filter(line => line.trim());
+          
+          // Parse header to get column positions
+          const delimiter = cmdOptions.delimiter || (cmdOptions.format === 'csv' ? ',' : '\t');
+          const header = lines[0].split(delimiter).map(col => col.trim().replace(/\r$/, ''));
+          if (options.debug) {
+            console.log('Debug - Header:', header);
+            console.log('Debug - tenant_id index:', header.indexOf('tenant_id'));
+          }
+          const tenantIdIndex = header.indexOf('tenant_id');
+          
+          if (hasTenantId && tenantIdIndex === -1) {
+            throw new Error('Table has tenant_id column but input file does not contain tenant_id');
+          }
+
+          // Get column list
+          let columns = header;
+          if (cmdOptions.columnList) {
+            columns = cmdOptions.columnList.split(',').map((col: string) => col.trim());
+          }
+
+          // Skip header row and process data rows
+          const dataRows = lines.slice(1);
+          if (options.debug) {
+            console.log('Debug - Number of data rows:', dataRows.length);
+          }
+
+          const startTime = Date.now();
+          let totalRowsInserted = 0;
+
+          // Create progress bar
+          const progressBar = new SingleBar({
+            format: 'Copying data |' + theme.primary('{bar}') + '| {percentage}% || {value}/{total} Rows || Speed: {speed} rows/sec',
+            barCompleteChar: '█',
+            barIncompleteChar: '░',
+            hideCursor: true,
+            clearOnComplete: false,
+            fps: 5
+          }, Presets.shades_classic);
+
+          // Start the progress bar
+          progressBar.start(dataRows.length, 0, {
+            speed: "N/A"
+          });
+
+          // Process in batches of 10,000 rows
+          for (let i = 0; i < dataRows.length; i += 10000) {
+            const batch = dataRows.slice(i, i + 10000);
+            if (options.debug) {
+              console.log(`Debug - Processing batch of ${batch.length} rows starting at index ${i}`);
+            }
+            
+            await client.query('BEGIN');
+            try {
+              // Format values for batch insert
+              const values = batch.map(row => row.split(delimiter).map(v => v.trim()));
+              if (options.debug) {
+                console.log('Debug - First row in batch:', values[0]);
+              }
+              
+              // Use pg-format to safely format the values
+              const batchQuery = format(
+                'INSERT INTO %I (%s) VALUES %L',
+                cmdOptions.tableName,
+                columns.join(', '),
+                values
+              );
+              
+              await client.query(batchQuery);
+              await client.query('COMMIT');
+              totalRowsInserted += batch.length;
+
+              // Update progress bar
+              const currentTime = Date.now();
+              const elapsedSeconds = (currentTime - startTime) / 1000;
+              const speed = Math.round(totalRowsInserted / elapsedSeconds);
+              progressBar.update(totalRowsInserted, {
+                speed: speed.toLocaleString()
+              });
+
+              if (options.debug) {
+                console.log(theme.success(`Inserted ${batch.length} rows`));
+              }
+            } catch (error) {
+              await client.query('ROLLBACK');
+              progressBar.stop();
+              throw error;
+            }
+          }
+
+          // Stop the progress bar
+          progressBar.stop();
+
+          const endTime = Date.now();
+          const totalTimeSeconds = ((endTime - startTime) / 1000).toFixed(2);
+          const rowsPerSecond = Math.round(totalRowsInserted / (endTime - startTime) * 1000);
+          
+          console.log(theme.success('\nCopy operation completed successfully:'));
+          console.log(theme.info(`Total rows inserted: ${theme.bold(totalRowsInserted.toLocaleString())}`));
+          console.log(theme.info(`Total time: ${theme.bold(totalTimeSeconds)} seconds`));
+          console.log(theme.info(`Average speed: ${theme.bold(rowsPerSecond.toLocaleString())} rows/second`));
+        } finally {
+          await client.end();
+        }
+      } catch (error) {
+        console.error(theme.error('Failed to copy data:'), error);
+        process.exit(1);
       }
     });
 
