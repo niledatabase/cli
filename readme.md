@@ -184,8 +184,8 @@ nile --format csv db list
 
 If you want to try out the latest features before they're released:
 
-1. Alpha versions are published when changes are merged to the main branch
-2. Stable versions are published when changes are merged to the stable branch
+1. Alpha versions are published when changes are merged to the alpha branch
+2. Stable versions are published when changes are merged to the main branch from alpha branch
 
 To install a specific version:
 
