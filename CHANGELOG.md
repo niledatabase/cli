@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/niledatabase/cli/compare/v1.2.0...v1.2.1) (2025-04-22)
+
+
+### Bug Fixes
+
+* readme ([c3a881d](https://github.com/niledatabase/cli/commit/c3a881df6cdcbaefd687f268c5ff3806c94d5438))
+
 # [1.2.0-alpha.3](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.2...v1.2.0-alpha.3) (2025-04-22)
 
 
