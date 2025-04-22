@@ -1,3 +1,12 @@
+# [1.3.0](https://github.com/niledatabase/cli/compare/v1.2.1...v1.3.0) (2025-04-22)
+
+
+### Features
+
+* commit copy command ([ecac4e8](https://github.com/niledatabase/cli/commit/ecac4e896c8ed40c1949866bf3782343b293af90))
+* update version ([9b2253a](https://github.com/niledatabase/cli/commit/9b2253af33068de0bc7a0dcb2d7e88e057d38102))
+* update version ([80e93f5](https://github.com/niledatabase/cli/commit/80e93f539cc2621aeb35b580df551fb40852b831))
+
 ## [1.2.1](https://github.com/niledatabase/cli/compare/v1.2.0...v1.2.1) (2025-04-22)
 
 
