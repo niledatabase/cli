@@ -164,7 +164,9 @@ export class NileAPI {
 
   async getDatabaseConnection(workspaceSlug: string, databaseName: string): Promise<PostgresConnection> {
     // Get database credentials from control plane
-    console.log(theme.dim('\nFetching database credentials...'));
+    if (this.debug) {
+      console.log(theme.dim('\nFetching database credentials...'));
+    }
     const credentials = await this.createDatabaseCredentials(workspaceSlug, databaseName);
 
     if (!credentials.id || !credentials.password) {

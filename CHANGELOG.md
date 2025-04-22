@@ -5,6 +5,27 @@
 
 * readme ([c3a881d](https://github.com/niledatabase/cli/commit/c3a881df6cdcbaefd687f268c5ff3806c94d5438))
 
+# [1.2.0-alpha.6](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.5...v1.2.0-alpha.6) (2025-04-22)
+
+
+### Features
+
+* update version ([9b2253a](https://github.com/niledatabase/cli/commit/9b2253af33068de0bc7a0dcb2d7e88e057d38102))
+
+# [1.2.0-alpha.5](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.4...v1.2.0-alpha.5) (2025-04-22)
+
+
+### Features
+
+* update version ([80e93f5](https://github.com/niledatabase/cli/commit/80e93f539cc2621aeb35b580df551fb40852b831))
+
+# [1.2.0-alpha.4](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.3...v1.2.0-alpha.4) (2025-04-22)
+
+
+### Features
+
+* commit copy command ([ecac4e8](https://github.com/niledatabase/cli/commit/ecac4e896c8ed40c1949866bf3782343b293af90))
+
 # [1.2.0-alpha.3](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.2...v1.2.0-alpha.3) (2025-04-22)
 
 
