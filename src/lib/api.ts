@@ -172,17 +172,24 @@ export class NileAPI {
     }
 
     // Get the region from the database info
-    const region = credentials.database.region;  // e.g., AWS_US_WEST_2
+    const region = credentials.database.region;  // e.g., AWS_US_WEST_2 or AZURE_EASTUS
     const regionParts = region.toLowerCase().split('_');
-    const regionPrefix = regionParts.slice(1).join('-');  // e.g., us-west-2
+    const cloudProvider = regionParts[0];  // aws or azure
+    const regionId = regionParts.slice(1).join('-');  // e.g., us-west-2 or eastus
     
-    // Use custom host if provided, otherwise use default
-    const dbHost = this.dbHost ? 
-      `${regionPrefix}.${this.dbHost}` : 
-      `${regionPrefix}.db.thenile.dev`;
+    // Use custom host if provided, otherwise construct based on cloud provider
+    let dbHost;
+    if (cloudProvider === 'azure') {
+      dbHost = `db.${regionId}.azure.thenile.dev`;
+    } else {
+      // Default AWS format
+      dbHost = `${regionId}.db.thenile.dev`;
+    }
 
     if (this.debug) {
       console.log(theme.dim('\nPostgreSQL Connection Details:'));
+      console.log(theme.dim('Cloud Provider:'), cloudProvider);
+      console.log(theme.dim('Region:'), regionId);
       console.log(theme.dim('Host:'), dbHost);
       console.log(theme.dim('Database:'), databaseName);
       console.log(theme.dim('User:'), credentials.id);
