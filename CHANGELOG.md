@@ -1,3 +1,10 @@
+# [1.2.0-alpha.6](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.5...v1.2.0-alpha.6) (2025-04-22)
+
+
+### Features
+
+* update version ([9b2253a](https://github.com/niledatabase/cli/commit/9b2253af33068de0bc7a0dcb2d7e88e057d38102))
+
 # [1.2.0-alpha.5](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.4...v1.2.0-alpha.5) (2025-04-22)
 
 
