@@ -1,3 +1,10 @@
+# [1.2.0-alpha.4](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.3...v1.2.0-alpha.4) (2025-04-22)
+
+
+### Features
+
+* commit copy command ([ecac4e8](https://github.com/niledatabase/cli/commit/ecac4e896c8ed40c1949866bf3782343b293af90))
+
 # [1.2.0-alpha.3](https://github.com/niledatabase/cli/compare/v1.2.0-alpha.2...v1.2.0-alpha.3) (2025-04-22)
 
 
