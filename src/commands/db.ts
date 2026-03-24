@@ -6,12 +6,10 @@ import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { spawn } from 'child_process';
 import Table from 'cli-table3';
 import { handleDatabaseError, forceRelogin } from '../lib/errorHandling';
+import { validateDatabaseName, validateRegion, validateTableName, assertValid } from '../lib/validation';
 import axios from 'axios';
 import fs from 'fs';
-import path from 'path';
-import os from 'os';
 import { Client } from 'pg';
-import { from as copyFrom } from 'pg-copy-streams';
 import format from 'pg-format';
 import { SingleBar, Presets } from 'cli-progress';
 
@@ -227,6 +225,12 @@ ${getGlobalOptionsHelp()}`);
     .requiredOption('--region <region>', 'Database region')
     .action(async (options: { name: string; region: string }) => {
       try {
+        const dbNameValidation = validateDatabaseName(options.name);
+        assertValid(dbNameValidation);
+        
+        const regionValidation = validateRegion(options.region);
+        assertValid(regionValidation);
+        
         const globalOptions = getOptions();
         const configManager = new ConfigManager(globalOptions);
         let token = configManager.getToken();
@@ -254,7 +258,7 @@ ${getGlobalOptionsHelp()}`);
             '3. NILE_WORKSPACE environment variable');
         }
 
-        const database = await api.createDatabase(workspaceSlug, options.name, options.region);
+        const database = await api.createDatabase(workspaceSlug, options.name, options.region.toUpperCase());
 
         if (globalOptions.format === 'json') {
           console.log(JSON.stringify(database, null, 2));
@@ -552,6 +556,9 @@ ${getGlobalOptionsHelp()}`);
     .option('--delimiter <char>', 'Column delimiter character')
     .action(async (cmdOptions) => {
       try {
+        const tableValidation = validateTableName(cmdOptions.tableName);
+        assertValid(tableValidation);
+        
         const options = getOptions();
         const configManager = new ConfigManager(options);
         const workspaceSlug = configManager.getWorkspace();
