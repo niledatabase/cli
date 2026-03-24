@@ -1,15 +1,11 @@
 import axios from 'axios';
 import { theme } from './colors';
-import { GlobalOptions } from './globalOptions';
 import { ConfigManager } from './config';
 import { Auth } from './auth';
 import { NileAPI } from './api';
 
-/**
- * Forces a re-login when authentication fails
- */
 export async function forceRelogin(configManager: ConfigManager): Promise<void> {
-  configManager.removeToken(); // Clear the invalid token
+  configManager.removeToken();
   
   console.log(theme.warning('\nAuthentication failed. Forcing re-login...'));
   const token = await Auth.getAuthorizationToken(configManager);
@@ -25,7 +21,6 @@ export async function forceRelogin(configManager: ConfigManager): Promise<void> 
     }
     console.log(theme.success('Successfully re-authenticated!'));
     
-    // Verify workspace access after re-authentication
     const workspaceSlug = configManager.getWorkspace();
     if (workspaceSlug) {
       try {
@@ -50,114 +45,61 @@ export async function forceRelogin(configManager: ConfigManager): Promise<void> 
   }
 }
 
-/**
- * Handles API errors consistently across all commands
- * @param error The error object
- * @param operation Description of the operation that failed
- * @param configManager The ConfigManager instance to use
- */
-export async function handleApiError(error: any, operation: string, configManager: ConfigManager): Promise<never> {
+export type ErrorContext = 'API' | 'Database' | 'Tenant' | 'User';
+
+function getErrorPrefix(context: ErrorContext): string {
+  const prefixes: Record<ErrorContext, string> = {
+    API: 'Failed to',
+    Database: 'Database operation failed:',
+    Tenant: 'Tenant operation failed:',
+    User: 'User operation failed:'
+  };
+  return prefixes[context];
+}
+
+export async function handleError(
+  error: unknown,
+  context: ErrorContext,
+  operation: string,
+  configManager: ConfigManager
+): Promise<never> {
+  const prefix = getErrorPrefix(context);
+  const fullOperation = context === 'API' ? `${prefix} ${operation}` : `${prefix} ${operation}`;
+  
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 401 || error.message === 'Token is required') {
       await forceRelogin(configManager);
-      // Retry the operation after re-login
       const token = configManager.getToken();
       if (!token) {
         throw new Error('Failed to get token after re-login');
       }
       throw error;
-    } else if (error.response?.data?.errors) {
-      console.error(theme.error(`Failed to ${operation}:`), new Error(error.response.data.errors.join(', ')));
+    }
+    
+    if (error.response?.data?.errors) {
+      console.error(theme.error(fullOperation), new Error(error.response.data.errors.join(', ')));
     } else if (configManager.getDebug()) {
-      console.error(theme.error(`Failed to ${operation}:`), error);
+      console.error(theme.error(fullOperation), error);
     } else {
-      console.error(theme.error(`Failed to ${operation}:`), error.message || 'Unknown error');
+      console.error(theme.error(fullOperation), error.message || 'Unknown error');
     }
   } else if (configManager.getDebug()) {
-    console.error(theme.error(`Failed to ${operation}:`), error);
+    console.error(theme.error(fullOperation), error);
   } else {
-    console.error(theme.error(`Failed to ${operation}:`), error instanceof Error ? error.message : 'Unknown error');
+    console.error(theme.error(fullOperation), error instanceof Error ? error.message : 'Unknown error');
   }
+  
   process.exit(1);
 }
 
-/**
- * Handles database-specific errors
- * @param error The error object
- * @param operation Description of the operation that failed
- * @param configManager The ConfigManager instance to use
- */
-export async function handleDatabaseError(error: any, operation: string, configManager: ConfigManager): Promise<never> {
-  if (axios.isAxiosError(error)) {
-    if (error.response?.status === 401 || error.message === 'Token is required') {
-      await forceRelogin(configManager);
-      // Retry the operation after re-login
-      throw error;
-    } else if (error.response?.data?.errors) {
-      console.error(theme.error(`Database operation failed: ${operation}`), new Error(error.response.data.errors.join(', ')));
-    } else if (configManager.getDebug()) {
-      console.error(theme.error(`Database operation failed: ${operation}`), error);
-    } else {
-      console.error(theme.error(`Database operation failed: ${operation}`), error.message || 'Unknown error');
-    }
-  } else if (configManager.getDebug()) {
-    console.error(theme.error(`Database operation failed: ${operation}`), error);
-  } else {
-    console.error(theme.error(`Database operation failed: ${operation}`), error instanceof Error ? error.message : 'Unknown error');
-  }
-  process.exit(1);
-}
+export const handleApiError = (error: unknown, operation: string, configManager: ConfigManager) =>
+  handleError(error, 'API', operation, configManager);
 
-/**
- * Handles tenant-specific errors
- * @param error The error object
- * @param operation Description of the operation that failed
- * @param configManager The ConfigManager instance to use
- */
-export async function handleTenantError(error: any, operation: string, configManager: ConfigManager): Promise<never> {
-  if (axios.isAxiosError(error)) {
-    if (error.response?.status === 401 || error.message === 'Token is required') {
-      await forceRelogin(configManager);
-      // Retry the operation after re-login
-      throw error;
-    } else if (error.response?.data?.errors) {
-      console.error(theme.error(`Tenant operation failed: ${operation}`), new Error(error.response.data.errors.join(', ')));
-    } else if (configManager.getDebug()) {
-      console.error(theme.error(`Tenant operation failed: ${operation}`), error);
-    } else {
-      console.error(theme.error(`Tenant operation failed: ${operation}`), error.message || 'Unknown error');
-    }
-  } else if (configManager.getDebug()) {
-    console.error(theme.error(`Tenant operation failed: ${operation}`), error);
-  } else {
-    console.error(theme.error(`Tenant operation failed: ${operation}`), error instanceof Error ? error.message : 'Unknown error');
-  }
-  process.exit(1);
-}
+export const handleDatabaseError = (error: unknown, operation: string, configManager: ConfigManager) =>
+  handleError(error, 'Database', operation, configManager);
 
-/**
- * Handles user-specific errors
- * @param error The error object
- * @param operation Description of the operation that failed
- * @param configManager The ConfigManager instance to use
- */
-export async function handleUserError(error: any, operation: string, configManager: ConfigManager): Promise<never> {
-  if (axios.isAxiosError(error)) {
-    if (error.response?.status === 401 || error.message === 'Token is required') {
-      await forceRelogin(configManager);
-      // Retry the operation after re-login
-      throw error;
-    } else if (error.response?.data?.errors) {
-      console.error(theme.error(`User operation failed: ${operation}`), new Error(error.response.data.errors.join(', ')));
-    } else if (configManager.getDebug()) {
-      console.error(theme.error(`User operation failed: ${operation}`), error);
-    } else {
-      console.error(theme.error(`User operation failed: ${operation}`), error.message || 'Unknown error');
-    }
-  } else if (configManager.getDebug()) {
-    console.error(theme.error(`User operation failed: ${operation}`), error);
-  } else {
-    console.error(theme.error(`User operation failed: ${operation}`), error instanceof Error ? error.message : 'Unknown error');
-  }
-  process.exit(1);
-} 
+export const handleTenantError = (error: unknown, operation: string, configManager: ConfigManager) =>
+  handleError(error, 'Tenant', operation, configManager);
+
+export const handleUserError = (error: unknown, operation: string, configManager: ConfigManager) =>
+  handleError(error, 'User', operation, configManager); 
