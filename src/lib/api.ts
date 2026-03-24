@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import axiosRetry from 'axios-retry';
 import { Developer, Database, Credentials } from './types';
 import { theme } from './colors';
 
@@ -110,7 +111,6 @@ export class NileAPI {
       },
     });
 
-    // Create user client for user operations
     this.userClient = axios.create({
       baseURL: this.userUrl,
       headers: {
@@ -119,7 +119,25 @@ export class NileAPI {
       },
     });
 
-    // Add debug logging
+    const retryConfig = (client: AxiosInstance) => {
+      axiosRetry(client, {
+        retries: 3,
+        retryDelay: axiosRetry.exponentialDelay,
+        retryCondition: (error) => {
+          const status = error.response?.status;
+          return !status || status === 408 || status === 429 || (status >= 500 && status < 600);
+        },
+        onRetry: (retryCount, error, requestConfig) => {
+          if (this.debug) {
+            console.log(theme.dim(`Retry ${retryCount} for ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`));
+          }
+        }
+      });
+    };
+
+    retryConfig(this.controlPlaneClient);
+    retryConfig(this.userClient);
+
     this.addDebugLogging(this.controlPlaneClient);
     this.addDebugLogging(this.userClient);
 
