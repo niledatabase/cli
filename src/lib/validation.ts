@@ -92,9 +92,7 @@ export function validatePassword(password: string): ValidationResult {
 }
 
 // Region validation removed: region format and availability is validated by the control plane.
-export function validateRegion(_region: string): ValidationResult {
-  return { valid: true };
-}
+// validateRegion removed intentionally — region handling is performed server-side.
 
 export function validateTableName(name: string): ValidationResult {
   if (!name || name.trim().length === 0) {
