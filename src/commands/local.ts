@@ -39,7 +39,7 @@ async function isDockerRunning(): Promise<boolean> {
   try {
     await execAsync('docker info');
     return true;
-  } catch (error: any) {
+  } catch {
     return false;
   }
 }
@@ -182,7 +182,7 @@ ${getGlobalOptionsHelp()}`);
             console.log(theme.dim('To stop it, use: docker stop nile-local'));
             process.exit(1);
           }
-        } catch (error) {
+        } catch {
           // Ignore error, means docker ps failed which is fine
         }
 
@@ -247,7 +247,7 @@ ${getGlobalOptionsHelp()}`);
           console.log(theme.dim('\nStopping container...'));
           try {
             await execAsync('docker stop nile-local && docker rm nile-local');
-          } catch (error) {
+          } catch {
             // Ignore cleanup errors
           }
           process.exit(1);
@@ -336,7 +336,7 @@ ${getGlobalOptionsHelp()}`);
           try {
             await execAsync('docker stop nile-local && docker rm nile-local');
             console.log(theme.success('Local environment stopped successfully'));
-          } catch (error) {
+          } catch {
             console.error(theme.error('Failed to stop local environment cleanly'));
           }
           process.exit(0);
@@ -352,7 +352,7 @@ ${getGlobalOptionsHelp()}`);
         // Cleanup on error
         try {
           await execAsync('docker stop nile-local && docker rm nile-local');
-        } catch (cleanupError) {
+        } catch {
           // Ignore cleanup errors
         }
         process.exit(1);
