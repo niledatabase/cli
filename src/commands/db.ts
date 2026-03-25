@@ -6,7 +6,7 @@ import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { spawn } from 'child_process';
 import Table from 'cli-table3';
 import { handleDatabaseError, forceRelogin } from '../lib/errorHandling';
-import { validateDatabaseName, validateRegion, validateTableName, assertValid } from '../lib/validation';
+import { validateDatabaseName, validateTableName, assertValid } from '../lib/validation';
 import axios from 'axios';
 import fs from 'fs';
 import { Client } from 'pg';
@@ -227,9 +227,6 @@ ${getGlobalOptionsHelp()}`);
       try {
         const dbNameValidation = validateDatabaseName(options.name);
         assertValid(dbNameValidation);
-        
-        const regionValidation = validateRegion(options.region);
-        assertValid(regionValidation);
         
         const globalOptions = getOptions();
         const configManager = new ConfigManager(globalOptions);

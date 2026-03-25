@@ -91,29 +91,8 @@ export function validatePassword(password: string): ValidationResult {
   return { valid: true };
 }
 
-export function validateRegion(region: string): ValidationResult {
-  const validRegions = [
-    'AWS_US_WEST_2',
-    'AWS_US_EAST_1',
-    'AWS_US_EAST_2',
-    'AWS_EU_WEST_1',
-    'AWS_EU_CENTRAL_1',
-    'AZURE_EASTUS',
-    'AZURE_WESTUS2',
-    'AZURE_EUROPE_WEST'
-  ];
-  
-  if (!region || region.trim().length === 0) {
-    return { valid: false, error: 'Region is required' };
-  }
-  
-  if (!validRegions.includes(region.toUpperCase())) {
-    return { 
-      valid: false, 
-      error: `Invalid region. Valid regions: ${validRegions.join(', ')}` 
-    };
-  }
-  
+// Region validation removed: region format and availability is validated by the control plane.
+export function validateRegion(_region: string): ValidationResult {
   return { valid: true };
 }
 
