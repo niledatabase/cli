@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import axiosRetry from 'axios-retry';
+import axiosRetry, { isNetworkOrIdempotentRequestError } from 'axios-retry';
 import { Developer, Database, Credentials } from './types';
 import { theme } from './colors';
 
@@ -123,10 +123,7 @@ export class NileAPI {
       axiosRetry(client, {
         retries: 3,
         retryDelay: axiosRetry.exponentialDelay,
-        retryCondition: (error) => {
-          const status = error.response?.status;
-          return !status || status === 408 || status === 429 || (status >= 500 && status < 600);
-        },
+        retryCondition: isNetworkOrIdempotentRequestError,
         onRetry: (retryCount, error, requestConfig) => {
           if (this.debug) {
             console.log(theme.dim(`Retry ${retryCount} for ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`));
