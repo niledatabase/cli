@@ -156,17 +156,17 @@ describe('DB Command', () => {
 
     it('should create database successfully', async () => {
       mockNileAPI.createDatabase.mockResolvedValue({
-        name: 'test-db',
+        name: 'testdb',
         region: 'AWS_US_WEST_2',
         status: 'CREATING'
       });
 
-      await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db', '--region', 'AWS_US_WEST_2']);
+      await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'testdb', '--region', 'AWS_US_WEST_2']);
 
-      expect(mockNileAPI.createDatabase).toHaveBeenCalledWith('test-workspace', 'test-db', 'AWS_US_WEST_2');
+      expect(mockNileAPI.createDatabase).toHaveBeenCalledWith('test-workspace', 'testdb', 'AWS_US_WEST_2');
       const calls = (console.log as jest.Mock).mock.calls;
       const output = calls.map(call => call[0]).join('\n');
-      expect(output).toContain('test-db');
+      expect(output).toContain('testdb');
       expect(output).toContain('AWS_US_WEST_2');
       expect(output).toContain('CREATING');
     });
@@ -185,7 +185,7 @@ describe('DB Command', () => {
 
     it('should require region option', async () => {
       try {
-        await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db']);
+        await program.parseAsync(['node', 'test', 'db', 'create', '--name', 'testdb']);
       } catch (error) {
         expectProcessExit(error);
       }
@@ -199,7 +199,7 @@ describe('DB Command', () => {
       mockNileAPI.createDatabase.mockRejectedValue(new Error('API error'));
 
       await expect(
-        program.parseAsync(['node', 'test', 'db', 'create', '--name', 'test-db', '--region', 'AWS_US_WEST_2'])
+        program.parseAsync(['node', 'test', 'db', 'create', '--name', 'testdb', '--region', 'AWS_US_WEST_2'])
       ).rejects.toThrow('API error');
     });
   });
