@@ -5,6 +5,7 @@ import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { handleUserError, forceRelogin } from '../lib/errorHandling';
+import { validateEmail, validatePassword, assertValid } from '../lib/validation';
 import Table from 'cli-table3';
 import axios from 'axios';
 
@@ -213,6 +214,12 @@ Examples:
       .action(async (cmdOptions) => {
         let client: Client | undefined;
         try {
+          const emailValidation = validateEmail(cmdOptions.email);
+          assertValid(emailValidation);
+          
+          const passwordValidation = validatePassword(cmdOptions.password);
+          assertValid(passwordValidation);
+          
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
           const api = new NileAPI({
@@ -336,6 +343,16 @@ Examples:
       .action(async (cmdOptions) => {
         let client: Client | undefined;
         try {
+          if (cmdOptions.new_email) {
+            const emailValidation = validateEmail(cmdOptions.new_email);
+            assertValid(emailValidation);
+          }
+          
+          if (cmdOptions.new_password) {
+            const passwordValidation = validatePassword(cmdOptions.new_password);
+            assertValid(passwordValidation);
+          }
+          
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
           const api = new NileAPI({

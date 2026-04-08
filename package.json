@@ -60,6 +60,7 @@
   "dependencies": {
     "@types/pg": "^8.11.10",
     "axios": "^1.8.4",
+    "axios-retry": "^4.5.0",
     "chalk": "^4.1.2",
     "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",

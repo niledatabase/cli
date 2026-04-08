@@ -5,6 +5,7 @@ import { NileAPI } from '../lib/api';
 import { theme, formatCommand } from '../lib/colors';
 import { GlobalOptions, getGlobalOptionsHelp } from '../lib/globalOptions';
 import { handleTenantError, forceRelogin } from '../lib/errorHandling';
+import { validateTenantName, validateTenantId, assertValid } from '../lib/validation';
 import Table from 'cli-table3';
 import axios from 'axios';
 
@@ -214,6 +215,14 @@ Examples:
       .action(async (cmdOptions) => {
         let client: Client | undefined;
         try {
+          const nameValidation = validateTenantName(cmdOptions.name);
+          assertValid(nameValidation);
+          
+          if (cmdOptions.id) {
+            const idValidation = validateTenantId(cmdOptions.id);
+            assertValid(idValidation);
+          }
+          
           const options = getGlobalOptions();
           const configManager = new ConfigManager(options);
           const api = new NileAPI({
