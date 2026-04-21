@@ -11,6 +11,90 @@ import axios from 'axios';
 
 type GetOptions = () => GlobalOptions;
 
+function requireWorkspaceAndDatabase(configManager: ConfigManager): { workspaceSlug: string; databaseName: string } {
+  const workspaceSlug = configManager.getWorkspace();
+  if (!workspaceSlug) {
+    throw new Error('No workspace specified. Use one of:\n' +
+      '1. --workspace flag\n' +
+      '2. nile config --workspace <name>\n' +
+      '3. NILE_WORKSPACE environment variable');
+  }
+
+  const databaseName = configManager.getDatabase();
+  if (!databaseName) {
+    throw new Error('No database specified. Use one of:\n' +
+      '1. --db flag\n' +
+      '2. nile config --db <name>\n' +
+      '3. NILE_DB environment variable');
+  }
+
+  return { workspaceSlug, databaseName };
+}
+
+function buildEnvContent(envVars: Record<string, string>): string {
+  return Object.entries(envVars)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+}
+
+function upsertEnvFile(filePath: string, envVars: Record<string, string>): void {
+  const existingEntries = new Map<string, string>();
+
+  if (fs.existsSync(filePath)) {
+    const existingContent = fs.readFileSync(filePath, 'utf-8');
+    existingContent
+      .split(/\r?\n/)
+      .filter(line => line.trim().length > 0 && !line.trim().startsWith('#'))
+      .forEach(line => {
+        const separatorIndex = line.indexOf('=');
+        if (separatorIndex > 0) {
+          existingEntries.set(line.slice(0, separatorIndex), line.slice(separatorIndex + 1));
+        }
+      });
+  }
+
+  Object.entries(envVars).forEach(([key, value]) => {
+    existingEntries.set(key, value);
+  });
+
+  fs.writeFileSync(filePath, `${buildEnvContent(Object.fromEntries(existingEntries))}\n`);
+}
+
+function ensureAuthProviderImport(layoutContent: string): string {
+  if (layoutContent.includes("import { AuthProvider } from '@/components/AuthProvider';")) {
+    return layoutContent;
+  }
+
+  return layoutContent.replace(
+    'export default function RootLayout',
+    `import { AuthProvider } from '@/components/AuthProvider';\n\nexport default function RootLayout`
+  );
+}
+
+function wrapBodyWithAuthProvider(layoutContent: string): string {
+  if (layoutContent.includes('<AuthProvider>')) {
+    return layoutContent;
+  }
+
+  return layoutContent
+    .replace('<body>', '<body>\n      <AuthProvider>')
+    .replace('</body>', '      </AuthProvider>\n    </body>');
+}
+
+async function buildAuthEnvVars(configManager: ConfigManager, api: NileAPI): Promise<Record<string, string>> {
+  const { workspaceSlug, databaseName } = requireWorkspaceAndDatabase(configManager);
+  console.log(theme.dim('\nFetching database credentials...'));
+  const credentials = await api.createDatabaseCredentials(workspaceSlug, databaseName);
+  const connection = await api.getDatabaseConnection(workspaceSlug, databaseName);
+
+  return {
+    NILE_DATABASE_URL: `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`,
+    NILE_WORKSPACE: workspaceSlug,
+    NILE_API_KEY: credentials.id,
+    NILE_API_SECRET: credentials.password
+  };
+}
+
 export function createAuthCommand(getOptions: GetOptions): Command {
   const auth = new Command('auth')
     .description('Manage authentication')
@@ -30,14 +114,6 @@ ${getGlobalOptionsHelp()}`);
       try {
         const options = getOptions();
         const configManager = new ConfigManager(options);
-        const workspaceSlug = configManager.getWorkspace();
-        if (!workspaceSlug) {
-          throw new Error('No workspace specified. Use one of:\n' +
-            '1. --workspace flag\n' +
-            '2. nile config --workspace <name>\n' +
-            '3. NILE_WORKSPACE environment variable');
-        }
-
         const api = new NileAPI({
           token: configManager.getToken(),
           dbHost: configManager.getDbHost(),
@@ -58,25 +134,12 @@ ${getGlobalOptionsHelp()}`);
           console.log(theme.dim('\nInstalling required dependencies...'));
           execSync('npm install @niledatabase/react @niledatabase/server', { stdio: 'inherit' });
 
-          // Get database credentials
-          console.log(theme.dim('\nFetching database credentials...'));
-          const credentials = await api.createDatabaseCredentials(workspaceSlug, 'test');
-          const connection = await api.getDatabaseConnection(workspaceSlug, 'test');
-
           // Create environment variables
-          const envVars = {
-            NILE_DATABASE_URL: `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`,
-            NILE_WORKSPACE: workspaceSlug,
-            NILE_API_KEY: credentials.id,
-            NILE_API_SECRET: credentials.password
-          };
+          const envVars = await buildAuthEnvVars(configManager, api);
 
           // Write to .env.local
           console.log(theme.dim('\nWriting environment variables to .env.local...'));
-          const envContent = Object.entries(envVars)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n');
-          fs.writeFileSync('.env.local', envContent);
+          upsertEnvFile('.env.local', envVars);
 
           // Create API routes
           console.log(theme.dim('\nCreating API routes...'));
@@ -144,17 +207,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Update root layout
           console.log(theme.dim('\nUpdating root layout...'));
           const layoutFile = path.join('src', 'app', 'layout.tsx');
+          if (!fs.existsSync(layoutFile)) {
+            throw new Error('Could not find src/app/layout.tsx. Please run this command from a Next.js app using the App Router.');
+          }
           const layoutContent = fs.readFileSync(layoutFile, 'utf-8');
-          const updatedLayout = layoutContent.replace(
-            'export default function RootLayout',
-            `import { AuthProvider } from '@/components/AuthProvider';\n\nexport default function RootLayout`
-          ).replace(
-            '<body>',
-            '<body>\n      <AuthProvider>'
-          ).replace(
-            '</body>',
-            '      </AuthProvider>\n    </body>'
-          );
+          const updatedLayout = wrapBodyWithAuthProvider(ensureAuthProviderImport(layoutContent));
           fs.writeFileSync(layoutFile, updatedLayout);
 
           console.log(theme.success('\nAuthentication setup complete!'));
@@ -180,33 +237,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const options = getOptions();
         const configManager = new ConfigManager(options);
-        const workspaceSlug = configManager.getWorkspace();
-        if (!workspaceSlug) {
-          throw new Error('No workspace specified. Use one of:\n' +
-            '1. --workspace flag\n' +
-            '2. nile config --workspace <name>\n' +
-            '3. NILE_WORKSPACE environment variable');
-        }
-
         const api = new NileAPI({
           token: configManager.getToken(),
           dbHost: configManager.getDbHost(),
           controlPlaneUrl: configManager.getGlobalHost(),
           debug: options.debug
         });
-
-        // Get database credentials
-        console.log(theme.dim('\nFetching database credentials...'));
-        const credentials = await api.createDatabaseCredentials(workspaceSlug, 'test');
-        const connection = await api.getDatabaseConnection(workspaceSlug, 'test');
-
-        // Generate environment variables
-        const envVars = {
-          NILE_DATABASE_URL: `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`,
-          NILE_WORKSPACE: workspaceSlug,
-          NILE_API_KEY: credentials.id,
-          NILE_API_SECRET: credentials.password
-        };
+        const envVars = await buildAuthEnvVars(configManager, api);
 
         // Format environment variables
         const envContent = Object.entries(envVars)
@@ -216,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Output to file if specified
         if (cmdOptions.output) {
           console.log(theme.dim(`\nWriting environment variables to ${cmdOptions.output}...`));
-          fs.writeFileSync(cmdOptions.output, envContent);
+          upsertEnvFile(cmdOptions.output, envVars);
           console.log(theme.success(`\nEnvironment variables written to ${cmdOptions.output}`));
         } else {
           // Display in terminal
